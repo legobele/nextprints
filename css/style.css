@@ -152,6 +152,12 @@ input[type="file"] { padding: 8px; }
 .status-pill.ready { background: var(--green-bg); border-color: #bfe6cc; color: var(--green); }
 .status-pill.delivered { background: var(--green-bg); border-color: #bfe6cc; color: var(--green); }
 .status-pill.cancelled { background: var(--red-bg); border-color: #f3c2c2; color: var(--red); }
+.status-pill.ordered { background: var(--blue-bg); border-color: #cdd9f6; color: var(--accent); }
+.status-pill.queued { background: var(--yellow-bg); border-color: #f3dfba; color: var(--yellow); }
+.status-pill.printing { background: var(--blue-bg); border-color: #cdd9f6; color: var(--accent); }
+.status-pill.ready_for_delivery { background: var(--green-bg); border-color: #bfe6cc; color: var(--green); }
+.status-pill.reprint_queued { background: var(--red-bg); border-color: #f3c2c2; color: var(--red); }
+.status-pill.delivering { background: var(--yellow-bg); border-color: #f3dfba; color: var(--yellow); }
 
 /* ---------- product detail ---------- */
 .product-detail { display: grid; gap: 24px; }
@@ -259,6 +265,16 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px;
   padding: 1px 8px; margin-left: 8px; color: var(--muted); white-space: nowrap;
 }
+.order-meta { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.pickup-flag {
+  display: inline-block; background: var(--yellow-bg); border: 1px solid #f3dfba;
+  border-radius: 4px; padding: 2px 8px; color: var(--text); font-weight: 600;
+}
+.pickup-flag.pickup-missing { background: var(--red-bg); border-color: #f3c2c2; font-weight: 400; }
+.pickup-row { margin: 8px 0; font-size: 0.92rem; }
+.stepper-step.reprint-step .stepper-dot { border-color: var(--red); }
+.stepper-step.reprint-step.done .stepper-dot { background: var(--red); border-color: var(--red); }
+.stepper-step.reprint-step.current .stepper-dot { box-shadow: 0 0 0 4px var(--red-bg); }
 
 /* ---------- ratings ---------- */
 .rating-line { font-size: 0.88rem; color: var(--text); font-weight: 600; }

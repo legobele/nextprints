@@ -92,6 +92,25 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Pickup locations for delivering orders: customers set their own
+    // (they can't write /orders except to cancel, so this lives separately).
+    match /pickupLocations/{orderId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedStudent()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.orderId == orderId
+        && request.resource.data.pickupLocation is string;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.orderId == orderId
+        && request.resource.data.pickupLocation is string;
+      allow delete: if isAdmin();
+    }
+
     // Default deny.
     match /{document=**} {
       allow read, write: if false;

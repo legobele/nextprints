@@ -4,23 +4,34 @@
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
-  serverTimestamp,
+  arrayUnion, serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
 
 renderNav("admin");
 document.title = `Admin · ${BRAND_NAME}`;
 
-const ORDER_STATUSES = ["pending", "confirmed", "printing", "ready", "delivered", "cancelled"];
+// [value, label] — order fulfillment workflow.
+const ORDER_STATUSES = [
+  ["ordered", "Ordered"],
+  ["queued", "Queued"],
+  ["printing", "Printing"],
+  ["ready_for_delivery", "Ready for delivery"],
+  ["reprint_queued", "Failed — reprint on new batch"],
+  ["delivering", "Delivering"],
+  ["delivered", "Delivered"],
+  ["cancelled", "Cancelled"],
+];
 
 let products = [];
 let deals = [];
 let promos = [];
 let orders = [];
+let pickupMap = {}; // orderId -> pickupLocation (admin view)
 
 /* ---------- small helpers ---------- */
 
@@ -396,44 +407,159 @@ function wireOrders() {
 }
 
 async function refreshOrders() {
-  const snap = await getDocs(collection(db, "orders"));
-  orders = snap.docs
+  const [ordersSnap, pickupSnap] = await Promise.all([
+    getDocs(collection(db, "orders")),
+    getDocs(collection(db, "pickupLocations")),
+  ]);
+  orders = ordersSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+  pickupMap = {};
+  pickupSnap.docs.forEach((d) => {
+    const data = d.data();
+    if (data.pickupLocation) pickupMap[d.id] = data.pickupLocation;
+  });
   renderOrders();
+}
+
+function statusMetaHTML(o) {
+  const bits = [];
+  if (o.statusBatch && (canonStatus(o.status) === "queued" || canonStatus(o.status) === "reprint_queued")) {
+    bits.push(escapeHtml(fmtBatch(o.statusBatch)));
+  }
+  if (o.deliveryWindow && fmtDeliveryWindow(o.deliveryWindow)) {
+    bits.push(escapeHtml(fmtDeliveryWindow(o.deliveryWindow)));
+  }
+  if ((o.reprintHistory || []).length) {
+    const last = o.reprintHistory[o.reprintHistory.length - 1];
+    bits.push(`Reprinted on ${escapeHtml(fmtBatch(last.batch))}`);
+  }
+  const pk = pickupMap[o.id];
+  if (canonStatus(o.status) === "delivering") {
+    bits.push(pk
+      ? `<span class="pickup-flag">Pickup: <strong>${escapeHtml(pk)}</strong></span>`
+      : `<span class="pickup-flag pickup-missing">Pickup: not set yet</span>`);
+  }
+  return bits.length ? `<div class="order-meta">${bits.join(" · ")}</div>` : "";
+}
+
+function defaultBatchFor(o) {
+  const first = (o.items || [])[0];
+  const prod = first ? products.find((p) => p.id === first.productId) : null;
+  return (prod && prod.batchNumber) || (first && first.batchNumber) || "";
 }
 
 function renderOrders() {
   const filter = document.getElementById("ord-filter").value;
-  const rows = orders.filter((o) => !filter || o.status === filter);
-  document.getElementById("ord-rows").innerHTML = rows.map((o) => `
+  const rows = orders.filter((o) => !filter || canonStatus(o.status) === filter);
+  document.getElementById("ord-rows").innerHTML = rows.map((o) => {
+    const canon = canonStatus(o.status);
+    return `
     <tr>
       <td><code class="inline">${escapeHtml(o.id.slice(0, 8))}…</code></td>
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>
-      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.batchNumber ? ` <span class="batch-tag">Batch #${escapeHtml(i.batchNumber)}</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
+      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.batchNumber ? ` <span class="batch-tag">${escapeHtml(fmtBatch(i.batchNumber))}</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
       <td>
-        <select data-ostatus="${o.id}" style="margin:0;min-width:130px">
-          ${ORDER_STATUSES.map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}
+        <select data-ostatus="${o.id}" style="margin:0;min-width:150px">
+          ${ORDER_STATUSES.map(([v, label]) => `<option value="${v}" ${canon === v ? "selected" : ""}>${label}</option>`).join("")}
         </select>
+        ${statusMetaHTML(o)}
+        <div data-oextras="${o.id}"></div>
       </td>
-    </tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders yet.</td></tr>`;
+    </tr>`;
+  }).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders yet.</td></tr>`;
 
   document.querySelectorAll("[data-ostatus]").forEach((sel) =>
-    sel.addEventListener("change", async () => {
+    sel.addEventListener("change", () => onOrderStatusChange(sel)));
+}
+
+function orderExtrasForm(o, kind) {
+  if (kind === "queued") {
+    return `
+      <label>Batch number<input data-xbatch value="${escapeHtml(defaultBatchFor(o))}" placeholder="e.g. 83"></label>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button type="button" class="btn small" data-xsave>Save</button>
+        <button type="button" class="btn small ghost" data-xcancel>Cancel</button>
+      </div>`;
+  }
+  if (kind === "reprint_queued") {
+    return `
+      <label>New batch number<input data-xbatch placeholder="e.g. 84"></label>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button type="button" class="btn small" data-xsave>Save</button>
+        <button type="button" class="btn small ghost" data-xcancel>Cancel</button>
+      </div>`;
+  }
+  // delivering
+  const today = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  return `
+    <div class="form-grid two">
+      <div><label>Date<input type="date" data-xdate value="${o.deliveryWindow?.date || todayStr}"></label></div>
+      <div><label>Start time<input type="time" data-xtime value="${o.deliveryWindow?.startTime || "14:00"}"></label></div>
+    </div>
+    <p style="color:var(--muted);font-size:0.82rem;margin:4px 0">Delivery window is 1 hour from the start time.</p>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button type="button" class="btn small" data-xsave>Save</button>
+      <button type="button" class="btn small ghost" data-xcancel>Cancel</button>
+    </div>`;
+}
+
+async function onOrderStatusChange(sel) {
+  const id = sel.dataset.ostatus;
+  const val = sel.value;
+  const o = orders.find((x) => x.id === id);
+  const box = document.querySelector(`[data-oextras="${id}"]`);
+  if (val === "queued" || val === "reprint_queued" || val === "delivering") {
+    // These statuses need extra data — show the inline editor first.
+    box.innerHTML = orderExtrasForm(o, val);
+    box.querySelector("[data-xcancel]").addEventListener("click", () => {
+      box.innerHTML = "";
+      sel.value = canonStatus(o.status); // revert the dropdown
+    });
+    box.querySelector("[data-xsave]").addEventListener("click", async () => {
+      const update = { status: val, updatedAt: serverTimestamp() };
+      if (val === "queued" || val === "reprint_queued") {
+        const batch = box.querySelector("[data-xbatch]").value.trim();
+        if (!batch) { toast("Enter a batch number."); return; }
+        update.statusBatch = batch;
+        if (val === "reprint_queued") {
+          update.reprintHistory = arrayUnion({ batch, at: serverTimestamp() });
+        }
+      } else if (val === "delivering") {
+        const date = box.querySelector("[data-xdate]").value;
+        const startTime = box.querySelector("[data-xtime]").value;
+        if (!date || !startTime) { toast("Enter a date and start time."); return; }
+        update.deliveryWindow = { date, startTime };
+      }
       try {
-        await updateDoc(doc(db, "orders", sel.dataset.ostatus), {
-          status: sel.value,
-          updatedAt: serverTimestamp(),
-        });
-        const o = orders.find((x) => x.id === sel.dataset.ostatus);
-        if (o) o.status = sel.value;
-        toast(`Order → ${sel.value}`);
+        await updateDoc(doc(db, "orders", id), update);
+        Object.assign(o, update, { reprintHistory: val === "reprint_queued"
+          ? [...(o.reprintHistory || []), { batch: update.statusBatch, at: new Date() }]
+          : o.reprintHistory });
+        box.innerHTML = "";
+        toast(`Order → ${ORDER_STATUSES.find(([v]) => v === val)[1]}`);
+        renderOrders();
       } catch (err) {
         console.error(err);
         toast("Couldn't update: " + (err.message || err));
       }
-    }));
+    });
+    return;
+  }
+  try {
+    await updateDoc(doc(db, "orders", id), {
+      status: val,
+      updatedAt: serverTimestamp(),
+    });
+    if (o) o.status = val;
+    toast(`Order → ${ORDER_STATUSES.find(([v]) => v === val)[1]}`);
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't update: " + (err.message || err));
+  }
 }

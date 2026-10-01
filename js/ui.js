@@ -5,6 +5,7 @@ import { auth, FIREBASE_CONFIGURED } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL, CURRENCY } from "./config.js";
 import { cartCount } from "./store.js";
 import { maybePromptReview } from "./reviews.js";
+import { maybePromptPickup } from "./pickup.js";
 
 export function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -128,5 +129,70 @@ export function renderNav(active = "") {
       `<a href="account.html" class="${active === "account" ? "active" : ""}">${escapeHtml(user.email.split("@")[0])}</a>`;
     // In-app review prompt after delivery (never on the admin page).
     if (!location.pathname.includes("nxp-ops-7q2")) maybePromptReview(user);
+    // In-app pickup-location prompt while an order is out for delivery.
+    if (!location.pathname.includes("nxp-ops-7q2")) maybePromptPickup(user);
   });
+}
+
+/* ---------- order status (shared by shop + admin) ---------- */
+
+// Legacy "pending"/"confirmed" orders render as "ordered".
+export function canonStatus(s) {
+  if (s === "pending" || s === "confirmed") return "ordered";
+  return s || "ordered";
+}
+
+// Batch number renders exactly as typed — no zero-padding.
+export function fmtBatch(batch) {
+  const b = String(batch ?? "").trim();
+  return b ? `Batch ${b}` : "";
+}
+
+// "14:00" -> "2:00 PM"
+export function fmtTime12(hhmm) {
+  const m = String(hhmm || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  let h = Number(m[1]);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m[2]} ${ap}`;
+}
+
+// { date: "2026-11-18", startTime: "9:00" } -> "Wednesday, Nov 18, 9:00–10:00 AM"
+export function fmtDeliveryWindow(dw) {
+  if (!dw || !dw.date || !dw.startTime) return "";
+  const parts = String(dw.date).split("-").map(Number);
+  if (parts.length < 3 || parts.some(isNaN)) return "";
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(dt);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(dt);
+  const sm = String(dw.startTime).match(/^(\d{1,2}):(\d{2})/);
+  if (!sm) return `${weekday}, ${month} ${parts[2]}`;
+  const startMin = Number(sm[1]) * 60 + Number(sm[2]);
+  const endMin = startMin + 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  const endStr = `${pad(Math.floor(endMin / 60) % 24)}:${pad(endMin % 60)}`;
+  const start12 = fmtTime12(dw.startTime);
+  const end12 = fmtTime12(endStr);
+  // Collapse the AM/PM when both sides share it: "9:00–10:00 AM".
+  const range = start12.slice(-2) === end12.slice(-2)
+    ? `${start12.slice(0, -3)}–${end12}`
+    : `${start12}–${end12}`;
+  return `${weekday}, ${month} ${parts[2]}, ${range}`;
+}
+
+// Display label for an order's status pill.
+export function statusLabel(o) {
+  const s = canonStatus(o.status);
+  switch (s) {
+    case "queued": return o.statusBatch ? `Queued — ${fmtBatch(o.statusBatch)}` : "Queued";
+    case "printing": return "Printing";
+    case "ready_for_delivery": return "Ready for delivery";
+    case "reprint_queued": return o.statusBatch ? `Reprinting — ${fmtBatch(o.statusBatch)}` : "Reprinting";
+    case "delivering": return "Delivering";
+    case "delivered": return "Delivered";
+    case "cancelled": return "Cancelled";
+    default: return "Ordered";
+  }
 }
