@@ -77,6 +77,19 @@ export function setQty(productId, qty, variantKey = "") {
   saveCart(cart);
 }
 
+// Race-free qty nudge: reads the LIVE cart (not a snapshot), so rapid taps
+// can't clobber each other. Returns the new qty, or 0 if the line was removed.
+export function changeQty(productId, delta, variantKey = "") {
+  const cart = getCart();
+  const match = (l) => l.productId === productId && (l.variantKey || "") === (variantKey || "");
+  const line = cart.find(match);
+  if (!line) return 0;
+  line.qty = Math.min(99, Math.max(0, (Number(line.qty) || 0) + delta));
+  const newQty = line.qty;
+  saveCart(cart.filter((l) => (Number(l.qty) || 0) > 0));
+  return newQty;
+}
+
 export function clearCart() {
   localStorage.removeItem(CART_KEY);
   // Drop the server mirror too — no cart, no reminder.

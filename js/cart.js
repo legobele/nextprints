@@ -5,7 +5,7 @@ import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverT
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN, PRIORITY_FEE } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge, priorityOfferedFor } from "./ui.js";
-import { getCart, setQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2, variantImages, selectionsFromKey } from "./store.js";
+import { getCart, changeQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2, variantImages, selectionsFromKey } from "./store.js";
 
 renderNav("cart");
 document.title = `Cart · ${BRAND_NAME}`;
@@ -26,7 +26,7 @@ function discountFor(subtotal, promo) {
 
 async function loadLines() {
   const cart = getCart();
-  lines = [];
+  const next = []; // local: concurrent reloads must not share one mutable array
   let deals = [];
   try { deals = await fetchDeals(); } catch (e) { console.warn("deals load failed", e); }
   for (const l of cart) {
@@ -40,7 +40,7 @@ async function loadLines() {
     // Cart thumbnail follows the variant: the selected option's own photos
     // win, falling back to the product's first image.
     const vImgs = variantImages(p.variants, selectionsFromKey(l.variantKey));
-    lines.push({
+    next.push({
       productId: p.id, qty: l.qty,
       variantKey: l.variantKey || "",
       variantLabel: l.variantLabel || "",
@@ -55,6 +55,7 @@ async function loadLines() {
       description: p.description || "",
     });
   }
+  lines = next;
 }
 
 function render() {
@@ -75,7 +76,7 @@ function render() {
 
   view.hidden = false;
   view.innerHTML = `
-    ${lines.map((l, idx) => `
+    ${lines.map((l) => `
       <div class="cart-line">
         <img src="${escapeHtml(l.image)}" alt="${escapeHtml(l.name)}">
         <div class="info">
@@ -85,9 +86,9 @@ function render() {
           ${fmtEstimatedDelivery(l.leadTimeDays) ? `<div class="delivery-note">Estimated delivery: <strong>${escapeHtml(fmtEstimatedDelivery(l.leadTimeDays))}</strong></div>` : ""}
         </div>
         <div class="qty-stepper" style="margin:0">
-          <button data-dec="${idx}" aria-label="decrease">−</button>
+          <button data-dec data-pid="${escapeHtml(l.productId)}" data-vk="${escapeHtml(l.variantKey || "")}" aria-label="decrease">−</button>
           <span>${l.qty}</span>
-          <button data-inc="${idx}" aria-label="increase">+</button>
+          <button data-inc data-pid="${escapeHtml(l.productId)}" data-vk="${escapeHtml(l.variantKey || "")}" aria-label="increase">+</button>
         </div>
       </div>`).join("")}
 
@@ -127,19 +128,19 @@ function render() {
     <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12 only.</p>
   `;
 
-  // qty buttons (keyed by line index — the same product can appear
-  // multiple times with different variants)
-  view.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", async () => {
-    const l = lines[Number(b.dataset.dec)];
-    const newQty = Math.max(0, l.qty - 1);
-    b.parentElement.querySelector("span").textContent = newQty; // instant feedback
-    setQty(l.productId, l.qty - 1, l.variantKey); updateCartBadge(); await reload();
+  // qty buttons — race-free: each tap nudges the LIVE cart by a delta
+  // (never a stale snapshot), so rapid taps can't corrupt or empty it.
+  view.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => {
+    const newQty = changeQty(b.dataset.pid, -1, b.dataset.vk || "");
+    const span = b.parentElement && b.parentElement.querySelector("span");
+    if (span) span.textContent = newQty; // instant feedback
+    updateCartBadge(); reload();
   }));
-  view.querySelectorAll("[data-inc]").forEach((b) => b.addEventListener("click", async () => {
-    const l = lines[Number(b.dataset.inc)];
-    const newQty = Math.min(99, l.qty + 1);
-    b.parentElement.querySelector("span").textContent = newQty; // instant feedback
-    setQty(l.productId, l.qty + 1, l.variantKey); updateCartBadge(); await reload();
+  view.querySelectorAll("[data-inc]").forEach((b) => b.addEventListener("click", () => {
+    const newQty = changeQty(b.dataset.pid, 1, b.dataset.vk || "");
+    const span = b.parentElement && b.parentElement.querySelector("span");
+    if (span) span.textContent = newQty; // instant feedback
+    updateCartBadge(); reload();
   }));
 
   const applyBtn = document.getElementById("promo-apply");
@@ -214,8 +215,12 @@ async function refreshVerifyNotice() {
   } else slot.innerHTML = "";
 }
 
+let reloadSeq = 0; // only the latest reload may paint — a slow fetch
+                               // must never draw a stale cart over a newer one
 async function reload() {
+  const seq = ++reloadSeq;
   await loadLines();
+  if (seq !== reloadSeq) return; // superseded by a newer reload
   // Remember the grade from the customer's most recent order (if any),
   // so first-time buyers are asked once and repeat buyers aren't asked again.
   const user = auth.currentUser;
