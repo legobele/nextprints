@@ -147,6 +147,26 @@ function render() {
   if (prioCb) prioCb.addEventListener("change", () => { prioritySelected = prioCb.checked; render(); });
 
   document.getElementById("place-order").addEventListener("click", placeOrder);
+
+  // Autosave pickup details so repeat buyers don't retype them.
+  const nameInput = document.getElementById("f-name");
+  if (nameInput) {
+    try { nameInput.value = localStorage.getItem("np_pickup_name") || nameInput.value; } catch (e) {}
+    nameInput.addEventListener("input", () => {
+      try { localStorage.setItem("np_pickup_name", nameInput.value); } catch (e) {}
+    });
+  }
+  const gradeSel = document.getElementById("f-grade");
+  if (gradeSel) {
+    try {
+      const savedGrade = localStorage.getItem("np_pickup_grade");
+      if (savedGrade && !gradeSel.value) gradeSel.value = savedGrade;
+    } catch (e) {}
+    gradeSel.addEventListener("change", () => {
+      try { localStorage.setItem("np_pickup_grade", gradeSel.value); } catch (e) {}
+    });
+  }
+
   refreshVerifyNotice();
 }
 
