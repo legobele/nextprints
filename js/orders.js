@@ -5,7 +5,7 @@
 // reprint sub-step. Legacy "pending"/"confirmed" render as "ordered".
 
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME } from "./config.js";
 import {
@@ -163,6 +163,24 @@ function wirePickupButtons(scope) {
     b.addEventListener("click", () => {
       if (currentUser) openPickupModal(currentUser, b.dataset.pickupEdit, pickupMap[b.dataset.pickupEdit] || "");
     }));
+  scope.querySelectorAll("[data-cancel-order]").forEach((b) =>
+    b.addEventListener("click", () => onCancelOrder(b)));
+}
+
+// Customers may cancel while the order hasn't started production yet.
+// (Rules only let owners flip status -> "cancelled", nothing else.)
+async function onCancelOrder(btn) {
+  const id = btn.dataset.cancelOrder;
+  if (!confirm("Cancel this order? This can't be undone.")) return;
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, "orders", id), { status: "cancelled" });
+    location.reload();
+  } catch (err) {
+    console.error(err);
+    alert("Couldn't cancel the order. Try again.");
+    btn.disabled = false;
+  }
 }
 
 onAuthStateChanged(auth, async (user) => {
@@ -214,6 +232,7 @@ onAuthStateChanged(auth, async (user) => {
           ${o.priorityFee ? `<div class="row"><span>Priority delivery</span><span>+${fmtMoney(o.priorityFee)}</span></div>` : ""}
           <div class="row grand"><span>Total (cash)</span><span>${fmtMoney(o.total)}</span></div>
         </div>
+        ${canon === "ordered" ? `<button type="button" class=\"btn small ghost\" data-cancel-order=\"${o.id}\" style=\"margin-top:10px\">Cancel order</button>` : ""}
       </div>`;
     }).join("");
     wirePickupButtons(list);
