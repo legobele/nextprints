@@ -17,7 +17,7 @@ No build step, no npm, no frameworks. Mobile-first dark theme.
 | `cart.html` | Cart, promo code, pickup form (name + homeroom), place order → "pay cash on pickup" confirmation |
 | `orders.html` | "My orders" — signed-in user sees their own orders + live status |
 | `account.html` | Signup / login / logout, email verification status + resend |
-| `admin.html` | Admin panel (admin email only): Products, Deals, Promo codes, Orders |
+| `nxp-ops-7q2.html` | Admin panel (admin email only): Products, Deals, Promo codes, Orders |
 
 ## One-time Firebase setup
 
@@ -34,7 +34,7 @@ No build step, no npm, no frameworks. Mobile-first dark theme.
    **`firestore.rules`**, Publish.
 5. **Storage:** Build → Storage → Get started. Then **Rules** tab, paste
    **`storage.rules`**, Publish.
-6. **Seed products:** open `admin.html` in the deployed site, sign in as the
+6. **Seed products:** open `nxp-ops-7q2.html` in the deployed site, sign in as the
    admin, click **🌱 Seed demo products**. (Or run `seedProducts(db)` from
    `seed/seed-products.js` in the console on any shop page.)
 7. **Deploy the files** to any static host: GitHub Pages, Netlify, Vercel,

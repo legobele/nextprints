@@ -9,14 +9,16 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
-import { BRAND_NAME, SCHOOL_DOMAIN } from "./config.js";
+import { BRAND_NAME, SCHOOL_DOMAIN, ADMIN_EMAIL } from "./config.js";
 import { renderNav, escapeHtml, toast } from "./ui.js";
 
 renderNav("account");
 document.title = `Account · ${BRAND_NAME}`;
 
 function schoolEmailOK(email) {
-  return email.trim().toLowerCase().endsWith(`@${SCHOOL_DOMAIN}`);
+  const e = email.trim().toLowerCase();
+  // The shop owner signs up with a non-school email; everyone else needs @intermetro.edu.
+  return e.endsWith(`@${SCHOOL_DOMAIN}`) || e === ADMIN_EMAIL.toLowerCase();
 }
 
 function authFormsHTML(mode) {

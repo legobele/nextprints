@@ -1,6 +1,6 @@
 // Demo seed data for the fidget shop.
 //
-// Run it by opening admin.html (signed in as the admin) and clicking
+// Run it by opening nxp-ops-7q2.html (signed in as the admin) and clicking
 // "🌱 Seed demo products" — that button imports this module.
 // (You can also paste this file's body into the browser console on any
 // shop page, as long as `db` from js/firebase.js is in scope.)

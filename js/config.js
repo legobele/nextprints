@@ -5,7 +5,7 @@
 // Displayed in the nav, hero, page titles, etc.
 export const BRAND_NAME = "NextPrints";
 
-// The one account allowed into admin.html. MUST match the email
+// The one account allowed into nxp-ops-7q2.html. MUST match the email
 // hardcoded in firestore.rules and storage.rules.
 export const ADMIN_EMAIL = "legobele@gmail.com";
 

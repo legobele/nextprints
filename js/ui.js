@@ -123,7 +123,7 @@ export function renderNav(active = "") {
     }
     const isAdmin = user.email === ADMIN_EMAIL;
     slot.innerHTML =
-      (isAdmin ? `<a href="admin.html" class="${active === "admin" ? "active" : ""}">Admin</a>` : "") +
+      (isAdmin ? `<a href="nxp-ops-7q2.html" class="${active === "admin" ? "active" : ""}">Admin</a>` : "") +
       `<a href="account.html" class="${active === "account" ? "active" : ""}">${escapeHtml(user.email.split("@")[0])}</a>`;
   });
 }
