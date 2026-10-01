@@ -32,6 +32,7 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* kill double-tap zoom, keep pinch + scroll */
 }
 
 a { color: var(--accent); text-decoration: none; }
