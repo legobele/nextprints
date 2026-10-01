@@ -18,7 +18,7 @@ export const CURRENCY = "$";
 // Web Push (FCM) public VAPID key — generated in the Firebase console under
 // Project settings → Cloud Messaging → Web Push certificates. Filled in
 // after the NextPrints project migration.
-export const VAPID_KEY = "__FIREBASE_VAPID_KEY__";
+export const VAPID_KEY = "BDqlgFtTJWxW_INMfdVpnjGsYlqyrkNKf5BnmxnVoHavSdB3L6vljOhOsmPcD5vWM0kDbaKf05bNZyPbnKlnN50";
 
 // Rewards program: this many non-cancelled orders in a calendar month earns
 // VIP status (deal alerts go out to VIPs first + price-drop codes).
