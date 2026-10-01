@@ -129,6 +129,16 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Abandoned-cart mirrors, written by the owner's own devices.
+    match /carts/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Marketing preferences (email opt-in), owned by the user.
+    match /prefs/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Default deny.
     match /{document=**} {
       allow read, write: if false;

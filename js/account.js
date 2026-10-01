@@ -38,6 +38,10 @@ function authFormsHTML(mode) {
         <label>School email<input id="su-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
         <p style="color:var(--muted);font-size:0.85rem;margin:0 0 8px">Must be your <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> address — it's how we know you're from school.</p>
         <label>Password (6+ characters)<input id="su-pass" type="password" autocomplete="new-password"></label>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;cursor:pointer;margin:4px 0 8px">
+          <input type="checkbox" id="su-email-optin" checked style="margin-top:5px;flex:none">
+          <span style="font-size:0.9rem;color:var(--muted)">Email me about drops, deals and price cuts.</span>
+        </label>
         <button class="btn" id="su-go" style="width:100%">Create account</button>
       </div>
       <p id="auth-err" style="color:var(--red);font-size:0.9rem"></p>
@@ -76,6 +80,11 @@ function wireForms(mode, setMode) {
         email: cred.user.email,
         createdAt: serverTimestamp(),
       });
+      // Marketing preference lives in prefs/{uid} (owner-writable).
+      await setDoc(doc(db, "prefs", cred.user.uid), {
+        emailMarketing: document.getElementById("su-email-optin").checked,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       toast("Account created — check your inbox for the verification email.");
     } catch (e) {
       console.error(e);
@@ -117,6 +126,10 @@ function loggedInHTML(user) {
       <p class="muted" id="vip-line">Checking your VIP status…</p>
       <p class="muted" id="push-line">Checking notification status…</p>
       <button class="btn small" id="push-enable" hidden>Enable deal alerts</button>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;cursor:pointer;margin-top:10px">
+        <input type="checkbox" id="email-optin" style="margin-top:5px;flex:none">
+        <span class="muted" style="font-size:0.9rem">Email me about drops, deals and price cuts.</span>
+      </label>
     </div>`;
 }
 
@@ -155,7 +168,7 @@ onAuthStateChanged(auth, (user) => {
   wirePushControls(user);
 });
 
-// Deal alerts + VIP progress on the account page.
+// Deal alerts + VIP progress + email preference on the account page.
 async function wirePushControls(user) {
   const vipLine = document.getElementById("vip-line");
   try {
@@ -212,6 +225,28 @@ async function wirePushControls(user) {
       console.error(e);
       toast("Couldn't enable alerts — try again in a bit.");
       btn.disabled = false;
+    }
+  });
+
+  // Email preference toggle (prefs/{uid}, owner-writable).
+  const emailOptIn = document.getElementById("email-optin");
+  try {
+    const pref = await getDoc(doc(db, "prefs", user.uid));
+    emailOptIn.checked = !!(pref.data() && pref.data().emailMarketing);
+  } catch (e) {
+    console.error(e);
+  }
+  emailOptIn.addEventListener("change", async () => {
+    try {
+      await setDoc(doc(db, "prefs", user.uid), {
+        emailMarketing: emailOptIn.checked,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      toast(emailOptIn.checked ? "Deal emails on." : "Deal emails off.");
+    } catch (e) {
+      console.error(e);
+      toast("Couldn't save — try again in a bit.");
+      emailOptIn.checked = !emailOptIn.checked;
     }
   });
 }

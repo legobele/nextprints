@@ -695,8 +695,9 @@ function wireOrders() {
   document.getElementById("ord-filter").addEventListener("change", renderOrders);
 }
 
-// Deal-alert blasts (FCM push). Audience "vip" hits the deals-vip topic
-// (10+ orders this month); "all" hits every subscriber.
+// Deal-alert blasts. Push goes through sendBlast (FCM topics: "vip" hits the
+// deals-vip topic, "all" hits every subscriber); email goes through
+// sendEmailBlast to opted-in addresses. Channel "both" sends each.
 function wireBlasts() {
   const form = document.getElementById("blast-form");
   const status = document.getElementById("blast-status");
@@ -705,13 +706,23 @@ function wireBlasts() {
     const title = document.getElementById("bf-title").value.trim();
     const body = document.getElementById("bf-body").value.trim();
     const audience = document.getElementById("bf-audience").value;
+    const channel = document.getElementById("bf-channel").value;
     if (!title || !body) return;
     const btn = document.getElementById("blast-send");
     btn.disabled = true;
     status.textContent = "Sending…";
     try {
-      const res = await httpsCallable(getFunctions(), "sendBlast")({ title, body, audience });
-      status.textContent = `Sent to ${res.data.topic === "deals-vip" ? "VIPs" : "all subscribers"}.`;
+      const fns = getFunctions();
+      const results = [];
+      if (channel === "push" || channel === "both") {
+        const res = await httpsCallable(fns, "sendBlast")({ title, body, audience });
+        results.push(`push → ${res.data.topic === "deals-vip" ? "VIPs" : "all subscribers"}`);
+      }
+      if (channel === "email" || channel === "both") {
+        const res = await httpsCallable(fns, "sendEmailBlast")({ title, body });
+        results.push(`email → ${res.data.sent} subscriber${res.data.sent === 1 ? "" : "s"}`);
+      }
+      status.textContent = `Sent (${results.join("; ")}).`;
       form.reset();
       toast("Blast sent.");
     } catch (err) {

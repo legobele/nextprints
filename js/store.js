@@ -1,7 +1,7 @@
 // Shop domain logic: pricing tiers, cart (localStorage), product/deal reads.
 
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import { db } from "./firebase.js";
+import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase.js";
 import { toDate, isProductVisible } from "./ui.js";
 
 /* ---------------- cart (localStorage) ---------------- */
@@ -19,6 +19,36 @@ export function getCart() {
 
 export function saveCart(cart) {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  syncCartSoon();
+}
+
+// Abandoned-cart sync: mirrors the signed-in user's cart to Firestore
+// (debounced) so the hourly Cloud Function can send "left in your cart"
+// reminders. Fire-and-forget — a sync failure never breaks the local cart.
+let cartSyncTimer = null;
+function syncCartSoon() {
+  clearTimeout(cartSyncTimer);
+  cartSyncTimer = setTimeout(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const items = getCart().map((l) => ({
+        productId: l.productId,
+        variantKey: l.variantKey || "",
+        variantLabel: l.variantLabel || "",
+        qty: l.qty,
+      }));
+      // reminded:false resets the reminder cycle whenever the cart changes —
+      // a changed cart is a new abandonment.
+      await setDoc(
+        doc(db, "carts", user.uid),
+        { items, reminded: false, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("cart sync failed", e);
+    }
+  }, 4000);
 }
 
 export function addToCart(productId, qty = 1, variant = null) {
@@ -49,6 +79,11 @@ export function setQty(productId, qty, variantKey = "") {
 
 export function clearCart() {
   localStorage.removeItem(CART_KEY);
+  // Drop the server mirror too — no cart, no reminder.
+  try {
+    const user = auth.currentUser;
+    if (user) deleteDoc(doc(db, "carts", user.uid)).catch(() => {});
+  } catch {}
 }
 
 export function cartCount() {
