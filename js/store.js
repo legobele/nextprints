@@ -2,7 +2,7 @@
 
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "./firebase.js";
-import { toDate } from "./ui.js";
+import { toDate, isProductVisible } from "./ui.js";
 
 /* ---------------- cart (localStorage) ---------------- */
 
@@ -146,7 +146,7 @@ export async function fetchProducts() {
   const snap = await getDocs(collection(db, "products"));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((p) => p.active !== false)
+    .filter(isProductVisible)
     .sort((a, b) => {
       const ta = toDate(a.createdAt)?.getTime() || 0;
       const tb = toDate(b.createdAt)?.getTime() || 0;

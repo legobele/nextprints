@@ -128,7 +128,7 @@ async function refreshProducts() {
       <td><strong>${escapeHtml(p.name)}</strong><br><span style="color:var(--muted)">${escapeHtml(p.colorsNote || "")}</span></td>
       <td>${fmtMoney(p.price)}</td>
       <td>${escapeHtml(pre)}</td>
-      <td>${p.active === false ? "hidden" : "live"}</td>
+      <td>${p.active === false ? "hidden" : (toDate(p.preorderStartAt)?.getTime() > Date.now() ? "scheduled" : "live")}</td>
       <td style="white-space:nowrap">
         <button class="btn small ghost" data-pedit="${p.id}">Edit</button>
         <button class="btn small danger" data-pdel="${p.id}">Delete</button>

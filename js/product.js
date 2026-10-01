@@ -1,7 +1,7 @@
 // Product detail: gallery, price tiers, quantity, add to cart.
 
 import { BRAND_NAME } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, isProductVisible, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
 import { fetchProduct, getActivePrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, deltaSuffix, round2 } from "./store.js";
 import { ratingLineHTML } from "./reviews.js";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -22,7 +22,7 @@ async function main() {
   } catch (err) {
     console.error(err);
   }
-  if (!p) {
+  if (!p || !isProductVisible(p)) {
     app.innerHTML = `<div class="empty">Product not found. <a href="index.html">Back to shop</a></div>`;
     return;
   }

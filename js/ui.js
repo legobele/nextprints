@@ -26,6 +26,15 @@ export function toDate(v) {
   return isNaN(d) ? null : d;
 }
 
+// Storefront visibility: hidden when deactivated, or when the preorder
+// hasn't started yet (scheduled products appear automatically at start).
+export function isProductVisible(p) {
+  if (!p || p.active === false) return false;
+  const start = toDate(p.preorderStartAt);
+  if (start && start.getTime() > Date.now()) return false;
+  return true;
+}
+
 export function fmtDate(d) {
   const dt = toDate(d);
   return dt ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
