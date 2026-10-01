@@ -105,6 +105,39 @@ export function priorityDeliveryWindow(o, orderList = []) {
   return nextDeliveryWindow();
 }
 
+// Minutes before a window's end when its still-queued orders start rolling
+// to the next slot.
+export const ROLLOVER_LEAD_MIN = 5;
+
+// End of a delivery window as a Date (fixed windows use their real end;
+// custom times default to start + 60 min, matching the render).
+export function windowEndDate(w) {
+  if (!w?.date || !w.startTime) return null;
+  const end = windowEndFor(w.startTime);
+  const d = new Date(w.date + "T12:00:00");
+  if (end) {
+    const [eh, em] = end.split(":").map(Number);
+    d.setHours(eh, em, 0, 0);
+  } else {
+    const [sh, sm] = String(w.startTime).split(":").map(Number);
+    d.setHours(sh, sm + 60, 0, 0);
+  }
+  return d;
+}
+
+// Ready orders whose window is ending (or ended) — they roll to the next
+// slot. Delivering orders are in Giulia's hands and never auto-move.
+export function rolloverOrders(orderList = [], now = new Date()) {
+  const out = [];
+  for (const o of orderList || []) {
+    if (canonStatus(o?.status) !== "ready_for_delivery") continue;
+    const endDt = windowEndDate(o.deliveryWindow);
+    if (!endDt) continue;
+    if ((endDt - now) / 60000 <= ROLLOVER_LEAD_MIN) out.push(o);
+  }
+  return out;
+}
+
 // Assigned windows of a delivery-queue lane, earliest first, skipping
 // windows that already ended. lane: true = priority only, false = regular
 // only, null = every order. The lane division is invisible to customers.
@@ -118,13 +151,9 @@ export function queueWindows(orderList = [], lane = null) {
     if (s !== "ready_for_delivery" && s !== "delivering") continue;
     const w = o.deliveryWindow;
     if (!w?.date || !w.startTime) continue;
-    const end = windowEndFor(w.startTime);
-    const [eh, em] = String(end || "23:59").split(":").map(Number);
-    const endDt = new Date(w.date + "T12:00:00");
-    endDt.setHours(eh, em, 0, 0);
-    if (endDt <= now) continue;
+    if (windowEndDate(w) <= now) continue;
     const key = `${w.date}|${w.startTime}`;
-    if (!seen.has(key)) seen.set(key, { date: w.date, startTime: w.startTime, endTime: w.endTime || end });
+    if (!seen.has(key)) seen.set(key, { date: w.date, startTime: w.startTime, endTime: w.endTime || windowEndFor(w.startTime) });
   }
   return [...seen.keys()].sort().map((k) => seen.get(k));
 }

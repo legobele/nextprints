@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, rescheduleWindow, windowEndFor, priorityDeliveryWindow } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, rescheduleWindow, rolloverOrders, windowEndFor, priorityDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
 
 renderNav("admin");
@@ -79,6 +79,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("seed-btn").addEventListener("click", onSeed);
   }
   await refreshAll();
+  startQueueTicker();
 });
 
 function wireTabs() {
@@ -547,6 +548,43 @@ async function savePromo(e) {
 
 /* ---------- orders ---------- */
 
+let queueTickerStarted = false;
+
+// Live queue: every 30s, roll ready orders out of ending windows into the
+// next slot and persist it, so customers see the new window too. Rows are
+// patched surgically — an open form is never wiped by the tick.
+function startQueueTicker() {
+  if (queueTickerStarted) return;
+  queueTickerStarted = true;
+  setInterval(async () => {
+    if (document.getElementById("admin-panel")?.hidden) return;
+    const due = rolloverOrders(orders);
+    if (!due.length) return;
+    const w = nextDeliveryWindow();
+    if (!w) return;
+    let moved = 0;
+    for (const o of due) {
+      try {
+        await updateDoc(doc(db, "orders", o.id), {
+          deliveryWindow: w,
+          updatedAt: serverTimestamp(),
+        });
+        o.deliveryWindow = w;
+        moved++;
+      } catch (err) { console.error("rollover failed", o.id, err); }
+    }
+    if (!moved) return;
+    renderDeliveryQueue();
+    for (const o of due) {
+      const winEl = document.querySelector(`[data-win="${o.id}"]`);
+      if (winEl) winEl.textContent = fmtDeliveryWindow(w);
+      const pwinEl = document.querySelector(`[data-pwin="${o.id}"]`);
+      if (pwinEl) pwinEl.textContent = `Earliest window ${fmtDeliveryWindow(w)} (priority)`;
+    }
+    toast(`${moved} order${moved === 1 ? "" : "s"} rolled to ${fmtDeliveryWindow(w)}`);
+  }, 30000);
+}
+
 function wireOrders() {
   document.getElementById("ord-filter").addEventListener("change", renderOrders);
 }
@@ -573,7 +611,7 @@ function statusMetaHTML(o) {
     bits.push(escapeHtml(fmtBatch(o.statusBatch)));
   }
   if (o.deliveryWindow && fmtDeliveryWindow(o.deliveryWindow)) {
-    bits.push(escapeHtml(fmtDeliveryWindow(o.deliveryWindow)));
+    bits.push(`<span data-win="${o.id}">${escapeHtml(fmtDeliveryWindow(o.deliveryWindow))}</span>`);
   }
   if ((o.reprintHistory || []).length) {
     const last = o.reprintHistory[o.reprintHistory.length - 1];
@@ -581,7 +619,7 @@ function statusMetaHTML(o) {
   }
   if (o.priority) {
     const pw = priorityDeliveryWindow(o, orders);
-    if (pw && fmtDeliveryWindow(pw)) bits.push(`Earliest window ${escapeHtml(fmtDeliveryWindow(pw))} (priority)`);
+    if (pw && fmtDeliveryWindow(pw)) bits.push(`<span data-pwin="${o.id}">Earliest window ${escapeHtml(fmtDeliveryWindow(pw))} (priority)</span>`);
   } else {
     const eta = fmtETA(o);
     if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.allowEarlyEta ? "" : " (2-day floor)"}`);
@@ -628,7 +666,7 @@ function renderDeliveryQueue() {
   const reg = queued.filter((o) => !o.priority);
   el.innerHTML = `
     <div class="queue">
-      <h3>Delivery queue</h3>
+      <h3>Delivery queue <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">· live — orders roll forward as windows end</span></h3>
       ${prio.length ? `<h4 class="queue-lane">Priority</h4>${queueLaneHTML(prio)}` : ""}
       ${reg.length ? `<h4 class="queue-lane">Regular</h4>${queueLaneHTML(reg)}` : ""}
     </div>`;
@@ -804,6 +842,7 @@ async function onOrderStatusChange(sel) {  const id = sel.dataset.ostatus;
     await updateDoc(doc(db, "orders", id), update);
     if (o) Object.assign(o, update);
     toast(`Order → ${ORDER_STATUSES.find(([v]) => v === val)[1]}${update.deliveryWindow ? ` · ${fmtDeliveryWindow(update.deliveryWindow)}` : ""}`);
+    renderOrders();
   } catch (err) {
     console.error(err);
     toast("Couldn't update: " + (err.message || err));
