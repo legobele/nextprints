@@ -3,8 +3,8 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
-import { BRAND_NAME, SCHOOL_DOMAIN } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge } from "./ui.js";
+import { BRAND_NAME, SCHOOL_DOMAIN, PRIORITY_FEE } from "./config.js";
+import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge, priorityOfferedFor } from "./ui.js";
 import { getCart, setQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2 } from "./store.js";
 
 renderNav("cart");
@@ -13,6 +13,7 @@ document.title = `Cart · ${BRAND_NAME}`;
 const GRADES = ["6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
 let appliedPromo = null; // { code, type, value }
+let prioritySelected = false; // $3 priority-delivery upgrade at checkout
 let lines = []; // resolved cart lines: { productId, variantKey, variantLabel, qty, name, image, unitPrice, isPreorder, leadTimeDays }
 let knownGrade = null; // grade remembered from the customer's most recent order
 let gradeChecked = false;
@@ -62,7 +63,11 @@ function render() {
   }
   const subtotal = round2(lines.reduce((n, l) => n + l.unitPrice * l.qty, 0));
   const discount = discountFor(subtotal, appliedPromo);
-  const total = round2(subtotal - discount);
+  // Priority upgrade is only offered when it could actually beat the floors.
+  const showPriority = priorityOfferedFor(lines.map((l) => l.leadTimeDays));
+  if (!showPriority) prioritySelected = false;
+  const priorityFee = prioritySelected ? PRIORITY_FEE : 0;
+  const total = round2(subtotal - discount + priorityFee);
 
   view.hidden = false;
   view.innerHTML = `
@@ -94,8 +99,14 @@ function render() {
     <div class="totals">
       <div class="row"><span>Subtotal</span><span>${fmtMoney(subtotal)}</span></div>
       ${discount ? `<div class="row"><span>Discount</span><span>−${fmtMoney(discount)}</span></div>` : ""}
+      ${priorityFee ? `<div class="row"><span>Priority delivery</span><span>+${fmtMoney(priorityFee)}</span></div>` : ""}
       <div class="row grand"><span>Total (cash on pickup)</span><span>${fmtMoney(total)}</span></div>
     </div>
+    ${showPriority ? `
+    <label class="priority-opt">
+      <input type="checkbox" id="priority-cb" ${prioritySelected ? "checked" : ""}>
+      <span><strong>Priority delivery</strong> — jump the queue, estimated a day sooner <strong>+${fmtMoney(PRIORITY_FEE)}</strong></span>
+    </label>` : ""}
 
     <h3>Pickup details</h3>
     <div id="verify-notice"></div>
@@ -127,6 +138,9 @@ function render() {
   if (applyBtn) applyBtn.addEventListener("click", onApplyPromo);
   const rmBtn = document.getElementById("promo-remove");
   if (rmBtn) rmBtn.addEventListener("click", () => { appliedPromo = null; render(); });
+
+  const prioCb = document.getElementById("priority-cb");
+  if (prioCb) prioCb.addEventListener("change", () => { prioritySelected = prioCb.checked; render(); });
 
   document.getElementById("place-order").addEventListener("click", placeOrder);
   refreshVerifyNotice();
@@ -249,7 +263,8 @@ async function placeOrder() {
         tx.update(codeRef, { usedCount: (c.usedCount || 0) + 1 });
         promoCode = appliedPromo.code;
       }
-      const total = round2(subtotal - discount);
+      const priorityFee = (prioritySelected && priorityOfferedFor(lines.map((l) => l.leadTimeDays))) ? PRIORITY_FEE : 0;
+      const total = round2(subtotal - discount + priorityFee);
       const orderRef = doc(collection(db, "orders"));
       tx.set(orderRef, {
         userId: user.uid,
@@ -259,6 +274,8 @@ async function placeOrder() {
         items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, variantLabel: l.variantLabel || "", description: l.description, leadTimeDays: l.leadTimeDays ?? null })),
         subtotal,
         discount,
+        priorityFee,
+        priority: priorityFee > 0,
         total,
         promoCode,
         status: "pending",
@@ -269,7 +286,8 @@ async function placeOrder() {
 
     clearCart();
     updateCartBadge();
-    const total = round2(subtotal - discountFor(subtotal, appliedPromo));
+    const doneFee = (prioritySelected && priorityOfferedFor(lines.map((l) => l.leadTimeDays))) ? PRIORITY_FEE : 0;
+    const total = round2(subtotal - discountFor(subtotal, appliedPromo) + doneFee);
     document.getElementById("cart-view").hidden = true;
     const done = document.getElementById("done-view");
     done.hidden = false;

@@ -14,3 +14,6 @@ export const ADMIN_EMAIL = "legobele@gmail.com";
 export const SCHOOL_DOMAIN = "intermetro.edu";
 
 export const CURRENCY = "$";
+
+// Flat fee for the optional priority-delivery upgrade at checkout.
+export const PRIORITY_FEE = 3;

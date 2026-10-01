@@ -580,7 +580,7 @@ function statusMetaHTML(o) {
     bits.push(`Reprinted on ${escapeHtml(fmtBatch(last.batch))}`);
   }
   const eta = fmtETA(o);
-  if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.allowEarlyEta ? "" : " (2-day floor)"}`);
+  if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.priority ? " (priority)" : (o.allowEarlyEta ? "" : " (2-day floor)")}`);
   const pk = pickupMap[o.id];
   if (canonStatus(o.status) === "delivering") {
     bits.push(pk
@@ -597,7 +597,7 @@ function renderOrders() {
     const canon = canonStatus(o.status);
     return `
     <tr>
-      <td><code class="inline">${escapeHtml(o.id.slice(0, 8))}…</code></td>
+      <td><code class="inline">${escapeHtml(o.id.slice(0, 8))}…</code>${o.priority ? `<br><span class="priority-flag">PRIORITY</span>` : ""}</td>
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>

@@ -183,7 +183,10 @@ onAuthStateChanged(auth, async (user) => {
       <div class="order-card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <strong>Order ${escapeHtml(o.id.slice(0, 8))}…</strong>
-          <span class="status-pill ${escapeHtml(canon)}">${escapeHtml(statusLabel(o))}</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            ${o.priority ? `<span class="priority-flag">Priority delivery</span>` : ""}
+            <span class="status-pill ${escapeHtml(canon)}">${escapeHtml(statusLabel(o))}</span>
+          </span>
         </div>
         <p style="color:var(--muted);font-size:0.88rem;margin:6px 0">
           ${fmtDate(o.createdAt)} · ${escapeHtml(o.name || "")}${o.grade ? ` · Grade ${escapeHtml(o.grade)}` : ""}
@@ -196,6 +199,7 @@ onAuthStateChanged(auth, async (user) => {
         <div class="totals" style="margin:10px 0 0">
           <div class="row"><span>Subtotal</span><span>${fmtMoney(o.subtotal)}</span></div>
           ${o.discount ? `<div class="row"><span>Discount${o.promoCode ? ` (${escapeHtml(o.promoCode)})` : ""}</span><span>−${fmtMoney(o.discount)}</span></div>` : ""}
+          ${o.priorityFee ? `<div class="row"><span>Priority delivery</span><span>+${fmtMoney(o.priorityFee)}</span></div>` : ""}
           <div class="row grand"><span>Total (cash)</span><span>${fmtMoney(o.total)}</span></div>
         </div>
       </div>`;

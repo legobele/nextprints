@@ -71,8 +71,11 @@ function startOfDay(d) {
 
 // Returns a Date (customer-visible ETA) or null when no ETA applies:
 // - delivering: the scheduled window date, exact — never floored.
-// - otherwise: (last status update) + remaining days for that status,
-//   floored at today + ETA_FLOOR_DAYS unless the order has allowEarlyEta.
+// - otherwise: (last status update) + remaining days for that status.
+//   Priority orders get a day knocked off and skip the soft floor.
+// Floors: the hard floor is always tomorrow (never same-day, for both
+// regular and priority); regular orders additionally never show under
+// today + ETA_FLOOR_DAYS unless the order has allowEarlyEta.
 export function orderETA(o) {
   const status = canonStatus(o?.status);
   if (!o || status === "delivered" || status === "cancelled") return null;
@@ -87,15 +90,27 @@ export function orderETA(o) {
       .filter((n) => Number.isFinite(n) && n >= 0);
     days = leads.length ? Math.max(...leads) : 7;
   }
+  if (o.priority) days -= 1;
   const base = toDate(o.updatedAt) || toDate(o.createdAt) || new Date();
   const eta = new Date(base);
   eta.setDate(eta.getDate() + Math.round(days));
-  if (!o.allowEarlyEta) {
+  const hardFloor = startOfDay(new Date());
+  hardFloor.setDate(hardFloor.getDate() + 1);
+  if (startOfDay(eta) < hardFloor) return hardFloor;
+  if (!o.priority && !o.allowEarlyEta) {
     const floor = startOfDay(new Date());
     floor.setDate(floor.getDate() + ETA_FLOOR_DAYS);
     if (startOfDay(eta) < floor) return floor;
   }
   return eta;
+}
+
+// Should the $3 priority upgrade be offered for these product lead times?
+// Hidden when it couldn't beat the floors — i.e. both the regular and the
+// priority estimate would pin at their minimums, so the upgrade buys nothing.
+export function priorityOfferedFor(leadTimes) {
+  const leads = (leadTimes || []).map(Number).filter((n) => Number.isFinite(n) && n >= 0);
+  return leads.length > 0 && Math.max(...leads) > ETA_FLOOR_DAYS;
 }
 
 export function fmtETA(o) {
