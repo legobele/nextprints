@@ -4,7 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, toDate, toast, placeholderSVG, updateCartBadge } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge } from "./ui.js";
 import { getCart, setQty, clearCart, fetchProduct, getActivePrice, round2 } from "./store.js";
 
 renderNav("cart");
@@ -13,7 +13,7 @@ document.title = `Cart · ${BRAND_NAME}`;
 const GRADES = ["6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
 let appliedPromo = null; // { code, type, value }
-let lines = []; // resolved cart lines: { productId, qty, name, image, unitPrice, isPreorder, deliveryEstimate }
+let lines = []; // resolved cart lines: { productId, qty, name, image, unitPrice, isPreorder, leadTimeDays }
 let knownGrade = null; // grade remembered from the customer's most recent order
 let gradeChecked = false;
 
@@ -35,10 +35,9 @@ async function loadLines() {
       productId: p.id, qty: l.qty, name: p.name,
       image: (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320)),
       unitPrice: price, isPreorder,
-      deliveryEstimate: p.deliveryEstimate || null,
-      // Snapshotted so old orders keep the original batch/description.
+      leadTimeDays: p.leadTimeDays ?? null,
+      // Snapshotted so old orders keep the original description.
       description: p.description || "",
-      batchNumber: p.batchNumber || "",
     });
   }
 }
@@ -63,7 +62,7 @@ function render() {
         <div class="info">
           <h4>${escapeHtml(l.name)}</h4>
           <div>${l.isPreorder ? `<span class="badge preorder">pre-order</span> ` : ""}${fmtMoney(l.unitPrice)} each</div>
-          ${l.deliveryEstimate ? `<div class="delivery-note">Estimated delivery: <strong>${escapeHtml(l.deliveryEstimate)}</strong></div>` : ""}
+          ${fmtEstimatedDelivery(l.leadTimeDays) ? `<div class="delivery-note">Estimated delivery: <strong>${escapeHtml(fmtEstimatedDelivery(l.leadTimeDays))}</strong></div>` : ""}
         </div>
         <div class="qty-stepper" style="margin:0">
           <button data-dec="${l.productId}" aria-label="decrease">−</button>
@@ -239,7 +238,7 @@ async function placeOrder() {
         name,
         homeroom,
         grade,
-        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, description: l.description, batchNumber: l.batchNumber })),
+        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, description: l.description })),
         subtotal,
         discount,
         total,

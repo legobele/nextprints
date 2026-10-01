@@ -37,10 +37,7 @@ const PRODUCTS = [
       "A manual-transmission style gear shifter fidget with an H-pattern gate. " +
       "3D-printed in black PLA. Pre-order pricing ends October 2, 2026.",
     colorsNote: "Black · PLA",
-    material: "PLA",
-    dimensions: "Approx. 9 × 5 × 3 cm",
-    deliveryEstimate: "October 7, 2026",
-    batchNumber: "001",
+    leadTimeDays: 7,
     price: 4.0,
     preorderPrice: 3.0,
     preorderStartAt: null, // live immediately
@@ -54,10 +51,7 @@ const PRODUCTS = [
       "The gear shifter fidget in a single solid color (non-black). " +
       "3D-printed in PLA. Pre-orders open October 15–20, 2026.",
     colorsNote: "Single color (non-black) · PLA",
-    material: "PLA",
-    dimensions: "Approx. 9 × 5 × 3 cm",
-    deliveryEstimate: "October 30, 2026",
-    batchNumber: "001",
+    leadTimeDays: 7,
     price: 10.0,
     preorderPrice: 7.0,
     preorderStartAt: T("2026-10-15T00:00:00-04:00"),
@@ -71,10 +65,7 @@ const PRODUCTS = [
       "The gear shifter fidget printed in multiple colors in a single print. " +
       "3D-printed in PLA. Pre-orders open November 7–12, 2026.",
     colorsNote: "Multicolor print · PLA",
-    material: "PLA",
-    dimensions: "Approx. 9 × 5 × 3 cm",
-    deliveryEstimate: "December 1, 2026",
-    batchNumber: "001",
+    leadTimeDays: 7,
     price: 15.0,
     preorderPrice: 12.0,
     preorderStartAt: T("2026-11-07T00:00:00-04:00"),

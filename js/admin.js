@@ -141,10 +141,7 @@ function showProductForm(p) {
   document.getElementById("pf-name").value = p?.name || "";
   document.getElementById("pf-colors").value = p?.colorsNote || "";
   document.getElementById("pf-desc").value = p?.description || "";
-  document.getElementById("pf-material").value = p?.material || "";
-  document.getElementById("pf-dimensions").value = p?.dimensions || "";
-  document.getElementById("pf-delivery").value = p?.deliveryEstimate || "";
-  document.getElementById("pf-batch").value = p?.batchNumber || "";
+  document.getElementById("pf-leadtime").value = p?.leadTimeDays ?? 7;
   document.getElementById("pf-price").value = p?.price ?? "";
   document.getElementById("pf-preprice").value = p?.preorderPrice ?? "";
   document.getElementById("pf-prestart").value = dateToDtLocal(p?.preorderStartAt);
@@ -181,10 +178,7 @@ async function saveProduct(e) {
     name: document.getElementById("pf-name").value.trim(),
     colorsNote: document.getElementById("pf-colors").value.trim(),
     description: document.getElementById("pf-desc").value.trim(),
-    material: document.getElementById("pf-material").value.trim(),
-    dimensions: document.getElementById("pf-dimensions").value.trim(),
-    deliveryEstimate: document.getElementById("pf-delivery").value.trim(),
-    batchNumber: document.getElementById("pf-batch").value.trim(),
+    leadTimeDays: Math.max(0, Math.round(Number(document.getElementById("pf-leadtime").value) || 0)),
     price: Number(document.getElementById("pf-price").value),
     preorderPrice: numOrNull(document.getElementById("pf-preprice").value),
     preorderStartAt: dtLocalToDate(document.getElementById("pf-prestart").value),
@@ -443,12 +437,6 @@ function statusMetaHTML(o) {
   return bits.length ? `<div class="order-meta">${bits.join(" · ")}</div>` : "";
 }
 
-function defaultBatchFor(o) {
-  const first = (o.items || [])[0];
-  const prod = first ? products.find((p) => p.id === first.productId) : null;
-  return (prod && prod.batchNumber) || (first && first.batchNumber) || "";
-}
-
 function renderOrders() {
   const filter = document.getElementById("ord-filter").value;
   const rows = orders.filter((o) => !filter || canonStatus(o.status) === filter);
@@ -460,7 +448,7 @@ function renderOrders() {
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>
-      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.batchNumber ? ` <span class="batch-tag">${escapeHtml(fmtBatch(i.batchNumber))}</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
+      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
       <td>
         <select data-ostatus="${o.id}" style="margin:0;min-width:150px">
@@ -479,7 +467,7 @@ function renderOrders() {
 function orderExtrasForm(o, kind) {
   if (kind === "queued") {
     return `
-      <label>Batch number<input data-xbatch value="${escapeHtml(defaultBatchFor(o))}" placeholder="e.g. 83"></label>
+      <label>Batch number<input data-xbatch value="" placeholder="e.g. 83"></label>
       <div style="display:flex;gap:6px;margin-top:6px">
         <button type="button" class="btn small" data-xsave>Save</button>
         <button type="button" class="btn small ghost" data-xcancel>Cancel</button>

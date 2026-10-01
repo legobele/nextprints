@@ -31,6 +31,16 @@ export function fmtDate(d) {
   return dt ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 }
 
+// Estimated delivery for a product lead time: today + leadTimeDays,
+// e.g. "October 7, 2026". Computed at render time, never stored.
+export function fmtEstimatedDelivery(leadTimeDays) {
+  const days = Number(leadTimeDays);
+  if (!Number.isFinite(days) || days < 0) return null;
+  const dt = new Date();
+  dt.setDate(dt.getDate() + Math.round(days));
+  return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
 export function formatDuration(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(s / 86400);

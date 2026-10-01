@@ -1,7 +1,7 @@
 // Product detail: gallery, price tiers, quantity, add to cart.
 
 import { BRAND_NAME } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, toast, placeholderSVG, updateCartBadge } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
 import { fetchProduct, getActivePrice, addToCart } from "./store.js";
 import { ratingLineHTML } from "./reviews.js";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -61,9 +61,7 @@ async function main() {
   }
 
   const specRows = [
-    ["Material", p.material || "PLA"],
-    p.dimensions ? ["Dimensions", p.dimensions] : null,
-    p.deliveryEstimate ? ["Estimated delivery", p.deliveryEstimate] : null,
+    p.leadTimeDays != null ? ["Estimated delivery", fmtEstimatedDelivery(p.leadTimeDays)] : null,
     ["Payment", "Cash on pickup or delivery"],
   ].filter(Boolean);
   const specHTML = `

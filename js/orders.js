@@ -105,7 +105,7 @@ function trunc(s, n = 120) {
 function itemHTML(i) {
   return `
     <div class="tracker-item">
-      <div><strong>${i.qty} × ${escapeHtml(i.name)}</strong>${i.batchNumber ? `<span class="batch-tag">${escapeHtml(fmtBatch(i.batchNumber))}</span>` : ""}</div>
+      <div><strong>${i.qty} × ${escapeHtml(i.name)}</strong></div>
       ${i.description ? `<p class="desc clamp-2">${escapeHtml(trunc(i.description))}</p>` : ""}
     </div>`;
 }

@@ -1,7 +1,7 @@
 // Storefront: hero, live-preorder rail, product grid, limited deals.
 
 import { BRAND_NAME } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, placeholderSVG } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, fmtEstimatedDelivery, toDate, startCountdowns, placeholderSVG } from "./ui.js";
 import { fetchProducts, fetchDeals, getActivePrice } from "./store.js";
 import { fetchReviews, ratingLineHTML } from "./reviews.js";
 
@@ -22,8 +22,9 @@ function cardHTML(p, reviews) {
   const priceRow = isPreorder
     ? `<div class="price-row"><span class="price">${fmtMoney(price)}</span><span class="price strike">${fmtMoney(p.price)}</span></div>`
     : `<div class="price-row"><span class="price">${fmtMoney(price)}</span></div>`;
-  const delivery = p.deliveryEstimate
-    ? `<p class="delivery-note">Estimated delivery: <strong>${escapeHtml(p.deliveryEstimate)}</strong></p>`
+  const eta = fmtEstimatedDelivery(p.leadTimeDays);
+  const delivery = eta
+    ? `<p class="delivery-note">Estimated delivery: <strong>${escapeHtml(eta)}</strong></p>`
     : "";
   return `
     <a class="card" href="product.html?id=${encodeURIComponent(p.id)}" style="color:inherit">

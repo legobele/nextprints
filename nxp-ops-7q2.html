@@ -49,12 +49,7 @@
           <div><label>Color note (short)<input id="pf-colors" placeholder="e.g. Black only"></label></div>
         </div>
         <label>Description<textarea id="pf-desc"></textarea></label>
-        <div class="form-grid two">
-          <div><label>Material<input id="pf-material" placeholder="e.g. PLA"></label></div>
-          <div><label>Dimensions<input id="pf-dimensions" placeholder="e.g. 9 × 5 × 3 cm"></label></div>
-        </div>
-        <label>Estimated delivery (shown to customers)<input id="pf-delivery" placeholder="e.g. October 7, 2026"></label>
-        <label>Batch number<input id="pf-batch" placeholder="e.g. 001"></label>
+        <label>Lead time in days (estimated delivery autocalculates from today)<input id="pf-leadtime" type="number" min="0" step="1" placeholder="e.g. 7"></label>
         <div class="form-grid two">
           <div><label>Regular price<input id="pf-price" type="number" step="0.01" min="0" required></label></div>
           <div><label>Preorder price (blank = none)<input id="pf-preprice" type="number" step="0.01" min="0"></label></div>
