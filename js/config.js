@@ -27,7 +27,7 @@ export const VIP_ORDER_THRESHOLD = 10;
 // Maintenance mode: when true, every storefront page shows a maintenance
 // notice instead of the shop. The admin console (nxp-ops-7q2.html) is
 // exempt. Flip back to false when the maintenance window ends.
-export const MAINTENANCE_MODE = false;
+export const MAINTENANCE_MODE = true;
 
 // Flat fee for the optional priority-delivery upgrade at checkout.
 export const PRIORITY_FEE = 3;
