@@ -10,7 +10,7 @@ import { auth, db } from "./firebase.js";
 import { BRAND_NAME } from "./config.js";
 import {
   renderNav, escapeHtml, fmtMoney, toDate, fmtDate,
-  canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow,
+  canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA,
 } from "./ui.js";
 import { fetchPickupMap, openPickupModal } from "./pickup.js";
 
@@ -101,6 +101,17 @@ function statusHint(o) {
   }
 }
 
+// Customer-visible ETA, auto-calculated from Giulia's status updates and
+// floored at 2 days out (unless she toggled the order to allow earlier).
+// Not shown while delivering (the scheduled window is shown instead).
+function etaLineHTML(o) {
+  const status = canonStatus(o.status);
+  if (status === "delivering" || status === "delivered" || status === "cancelled") return "";
+  const eta = fmtETA(o);
+  if (!eta) return "";
+  return `<p style="font-size:0.92rem;color:var(--muted)">Estimated delivery: <strong style="color:var(--text)">${escapeHtml(eta)}</strong></p>`;
+}
+
 function trunc(s, n = 120) {
   s = String(s || "");
   return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
@@ -179,6 +190,7 @@ onAuthStateChanged(auth, async (user) => {
         </p>
         ${trackerHTML(o)}
         <p style="font-size:0.92rem">${escapeHtml(statusHint(o))}</p>
+        ${etaLineHTML(o)}
         ${canon === "delivering" ? pickupRowHTML(o) : ""}
         <div>${(o.items || []).map(itemHTML).join("")}</div>
         <div class="totals" style="margin:10px 0 0">

@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
 
 renderNav("admin");
@@ -579,6 +579,8 @@ function statusMetaHTML(o) {
     const last = o.reprintHistory[o.reprintHistory.length - 1];
     bits.push(`Reprinted on ${escapeHtml(fmtBatch(last.batch))}`);
   }
+  const eta = fmtETA(o);
+  if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.allowEarlyEta ? "" : " (2-day floor)"}`);
   const pk = pickupMap[o.id];
   if (canonStatus(o.status) === "delivering") {
     bits.push(pk
@@ -606,6 +608,10 @@ function renderOrders() {
           ${ORDER_STATUSES.map(([v, label]) => `<option value="${v}" ${canon === v ? "selected" : ""}>${label}</option>`).join("")}
         </select>
         ${statusMetaHTML(o)}
+        <label style="display:block;margin-top:6px;font-size:0.8rem;color:var(--muted);font-weight:normal">
+          <input type="checkbox" data-eta-toggle="${o.id}" ${o.allowEarlyEta ? "checked" : ""} style="width:auto;margin:0 4px 0 0;vertical-align:middle">
+          Allow ETA under 2 days
+        </label>
         <div data-oextras="${o.id}"></div>
       </td>
     </tr>`;
@@ -613,6 +619,8 @@ function renderOrders() {
 
   document.querySelectorAll("[data-ostatus]").forEach((sel) =>
     sel.addEventListener("change", () => onOrderStatusChange(sel)));
+  document.querySelectorAll("[data-eta-toggle]").forEach((cb) =>
+    cb.addEventListener("change", () => onEtaToggleChange(cb)));
 }
 
 function orderExtrasForm(o, kind) {
@@ -648,8 +656,25 @@ function orderExtrasForm(o, kind) {
     </div>`;
 }
 
-async function onOrderStatusChange(sel) {
-  const id = sel.dataset.ostatus;
+// Per-order toggle: let this order's visible ETA drop below the 2-day floor.
+async function onEtaToggleChange(cb) {
+  const id = cb.dataset.etaToggle;
+  const o = orders.find((x) => x.id === id);
+  try {
+    await updateDoc(doc(db, "orders", id), {
+      allowEarlyEta: cb.checked,
+      updatedAt: serverTimestamp(),
+    });
+    if (o) o.allowEarlyEta = cb.checked;
+    renderOrders();
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't update: " + (err.message || err));
+    if (o) cb.checked = !!o.allowEarlyEta;
+  }
+}
+
+async function onOrderStatusChange(sel) {  const id = sel.dataset.ostatus;
   const val = sel.value;
   const o = orders.find((x) => x.id === id);
   const box = document.querySelector(`[data-oextras="${id}"]`);

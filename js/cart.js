@@ -256,7 +256,7 @@ async function placeOrder() {
         email: user.email,
         name,
         grade,
-        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, variantLabel: l.variantLabel || "", description: l.description })),
+        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, variantLabel: l.variantLabel || "", description: l.description, leadTimeDays: l.leadTimeDays ?? null })),
         subtotal,
         discount,
         total,

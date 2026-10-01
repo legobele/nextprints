@@ -50,6 +50,61 @@ export function fmtEstimatedDelivery(leadTimeDays) {
   return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+// ---- Order ETA: auto-calculated from Giulia's status updates ----
+// Days remaining until delivery once she sets each status. `null` means
+// "fall back to the longest product lead time snapshotted on the order".
+// Tweak the numbers any time — the customer view updates instantly.
+export const ETA_FLOOR_DAYS = 2;
+export const STATUS_ETA_DAYS = {
+  ordered: null,
+  queued: null,
+  printing: 3,
+  ready_for_delivery: 2,
+  reprint_queued: 5,
+};
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+// Returns a Date (customer-visible ETA) or null when no ETA applies:
+// - delivering: the scheduled window date, exact — never floored.
+// - otherwise: (last status update) + remaining days for that status,
+//   floored at today + ETA_FLOOR_DAYS unless the order has allowEarlyEta.
+export function orderETA(o) {
+  const status = canonStatus(o?.status);
+  if (!o || status === "delivered" || status === "cancelled") return null;
+  if (status === "delivering") {
+    const w = o.deliveryWindow?.date ? new Date(o.deliveryWindow.date + "T12:00:00") : null;
+    return w && !isNaN(w) ? w : null;
+  }
+  let days = STATUS_ETA_DAYS[status];
+  if (days == null) {
+    const leads = (o.items || [])
+      .map((i) => Number(i.leadTimeDays))
+      .filter((n) => Number.isFinite(n) && n >= 0);
+    days = leads.length ? Math.max(...leads) : 7;
+  }
+  const base = toDate(o.updatedAt) || toDate(o.createdAt) || new Date();
+  const eta = new Date(base);
+  eta.setDate(eta.getDate() + Math.round(days));
+  if (!o.allowEarlyEta) {
+    const floor = startOfDay(new Date());
+    floor.setDate(floor.getDate() + ETA_FLOOR_DAYS);
+    if (startOfDay(eta) < floor) return floor;
+  }
+  return eta;
+}
+
+export function fmtETA(o) {
+  const eta = orderETA(o);
+  return eta
+    ? eta.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : null;
+}
+
 export function formatDuration(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(s / 86400);
