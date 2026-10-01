@@ -960,6 +960,8 @@ async function onOrderStatusChange(sel) {  const id = sel.dataset.ostatus;
         if (!date || !startTime) { toast("Enter a date and start time."); xsave.disabled = false; return; }
         const endTime = windowEndFor(startTime); // fixed window end, else +60 min at render
         update.deliveryWindow = endTime ? { date, startTime, endTime } : { date, startTime };
+        // The run starts now — stamp it automatically, no manual entry.
+        update.deliveryStartedAt = serverTimestamp();
       }
       try {
         await updateDoc(doc(db, "orders", id), update);

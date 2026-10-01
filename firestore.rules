@@ -107,7 +107,8 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (request.auth != null && resource.data.userId == request.auth.uid);
       // The writer must own the order this pickup location belongs to.
-      allow create: if isVerifiedStudent()
+      // (Admin can write too, for test orders placed from the admin account.)
+      allow create: if (isVerifiedStudent() || isAdmin())
         && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.email == request.auth.token.email
