@@ -10,7 +10,7 @@ import { auth, db } from "./firebase.js";
 import { BRAND_NAME } from "./config.js";
 import {
   renderNav, escapeHtml, fmtMoney, toDate, fmtDate,
-  canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA,
+  canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, priorityDeliveryWindow,
 } from "./ui.js";
 import { fetchPickupMap, openPickupModal } from "./pickup.js";
 
@@ -82,31 +82,43 @@ function trackerHTML(o) {
 
 function statusHint(o) {
   const status = canonStatus(o.status);
+  let hint;
   switch (status) {
-    case "ordered": return "Order received.";
-    case "queued": return o.statusBatch ? `Queued for production — ${fmtBatch(o.statusBatch)}.` : "Queued for production.";
-    case "printing": return "Printing — your item is being produced.";
-    case "ready_for_delivery": return "Ready for delivery.";
+    case "ordered": hint = "Order received."; break;
+    case "queued": hint = o.statusBatch ? `Queued for production — ${fmtBatch(o.statusBatch)}.` : "Queued for production."; break;
+    case "printing": hint = "Printing — your item is being produced."; break;
+    case "ready_for_delivery": hint = "Ready for delivery."; break;
     case "reprint_queued": {
       const rb = fmtBatch(reprintBatch(o));
-      return rb ? `Print failed — printing again on ${rb}.` : "Print failed — printing again.";
+      hint = rb ? `Print failed — printing again on ${rb}.` : "Print failed — printing again."; break;
     }
     case "delivering": {
       const w = fmtDeliveryWindow(o.deliveryWindow);
-      return w ? `Delivering ${w}.` : "Out for delivery.";
+      hint = w ? `Delivering ${w}.` : "Out for delivery."; break;
     }
-    case "delivered": return "Delivered.";
-    case "cancelled": return "Cancelled.";
-    default: return "";
+    case "delivered": hint = "Delivered."; break;
+    case "cancelled": hint = "Cancelled."; break;
+    default: hint = "";
   }
+  if (hint && o.missedDeliveries && o.deliveryWindow?.date) {
+    hint += ` We couldn't find you — rescheduled for ${fmtDeliveryWindow(o.deliveryWindow)}.`;
+  }
+  return hint;
 }
 
 // Customer-visible ETA, auto-calculated from Giulia's status updates and
-// floored at 2 days out (unless she toggled the order to allow earlier).
-// Not shown while delivering (the scheduled window is shown instead).
+// Priority runs its own ticker: the earliest delivery window. Regular orders
+// show the day-count estimate, floored at 2 days out (unless she toggled
+// the order to allow earlier). Not shown while delivering (the scheduled
+// window is shown instead).
 function etaLineHTML(o) {
   const status = canonStatus(o.status);
   if (status === "delivering" || status === "delivered" || status === "cancelled") return "";
+  if (o.priority) {
+    const w = priorityDeliveryWindow(o);
+    if (!w) return "";
+    return `<p style="font-size:0.92rem;color:var(--muted)">Earliest delivery window: <strong style="color:var(--text)">${escapeHtml(fmtDeliveryWindow(w))}</strong></p>`;
+  }
   const eta = fmtETA(o);
   if (!eta) return "";
   return `<p style="font-size:0.92rem;color:var(--muted)">Estimated delivery: <strong style="color:var(--text)">${escapeHtml(eta)}</strong></p>`;

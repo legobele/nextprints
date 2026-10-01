@@ -17,3 +17,7 @@ export const CURRENCY = "$";
 
 // Flat fee for the optional priority-delivery upgrade at checkout.
 export const PRIORITY_FEE = 3;
+
+// Nothing auto-calculates a delivery before this date (e.g. first product
+// wave). Auto ETAs and auto-queued windows clamp to it.
+export const FIRST_DELIVERY_DATE = "2026-10-07";

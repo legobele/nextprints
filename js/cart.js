@@ -105,7 +105,7 @@ function render() {
     ${showPriority ? `
     <label class="priority-opt">
       <input type="checkbox" id="priority-cb" ${prioritySelected ? "checked" : ""}>
-      <span><strong>Priority delivery</strong> — jump the queue, estimated a day sooner <strong>+${fmtMoney(PRIORITY_FEE)}</strong></span>
+      <span><strong>Priority delivery</strong> — earliest delivery window <strong>+${fmtMoney(PRIORITY_FEE)}</strong></span>
     </label>` : ""}
 
     <h3>Pickup details</h3>

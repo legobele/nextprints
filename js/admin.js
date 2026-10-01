@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, firstWindowNextDay, windowEndFor, priorityDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
 
 renderNav("admin");
@@ -579,8 +579,14 @@ function statusMetaHTML(o) {
     const last = o.reprintHistory[o.reprintHistory.length - 1];
     bits.push(`Reprinted on ${escapeHtml(fmtBatch(last.batch))}`);
   }
-  const eta = fmtETA(o);
-  if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.priority ? " (priority)" : (o.allowEarlyEta ? "" : " (2-day floor)")}`);
+  if (o.priority) {
+    const pw = priorityDeliveryWindow(o);
+    if (pw && fmtDeliveryWindow(pw)) bits.push(`Earliest window ${escapeHtml(fmtDeliveryWindow(pw))} (priority)`);
+  } else {
+    const eta = fmtETA(o);
+    if (eta) bits.push(`ETA ${escapeHtml(eta)}${o.allowEarlyEta ? "" : " (2-day floor)"}`);
+  }
+  if (o.missedDeliveries) bits.push(`Missed ×${o.missedDeliveries}`);
   const pk = pickupMap[o.id];
   if (canonStatus(o.status) === "delivering") {
     bits.push(pk
@@ -590,7 +596,40 @@ function statusMetaHTML(o) {
   return bits.length ? `<div class="order-meta">${bits.join(" · ")}</div>` : "";
 }
 
+// Delivery queue: ready/delivering orders grouped by window, earliest first.
+function renderDeliveryQueue() {
+  const el = document.getElementById("delivery-queue");
+  if (!el) return;
+  const rows = orders.filter((o) => {
+    const s = canonStatus(o.status);
+    return (s === "ready_for_delivery" || s === "delivering") && o.deliveryWindow?.date;
+  });
+  if (!rows.length) { el.innerHTML = ""; return; }
+  const windows = new Map();
+  for (const o of rows) {
+    const key = `${o.deliveryWindow.date}|${o.deliveryWindow.startTime}`;
+    if (!windows.has(key)) windows.set(key, o.deliveryWindow);
+  }
+  const keys = [...windows.keys()].sort();
+  el.innerHTML = `
+    <div class="queue">
+      <h3>Delivery queue</h3>
+      ${keys.map((key) => {
+        const w = windows.get(key);
+        const os = rows
+          .filter((o) => `${o.deliveryWindow.date}|${o.deliveryWindow.startTime}` === key)
+          .sort((a, b) => (a.priority === b.priority ? 0 : a.priority ? -1 : 1));
+        return `<div class="queue-slot">
+          <strong>${escapeHtml(fmtDeliveryWindow(w))}</strong>
+          <span class="muted">${os.length} order${os.length === 1 ? "" : "s"}</span>
+          <ul>${os.map((o) => `<li>${o.priority ? '<span class="prio">PRIORITY</span> ' : ""}${escapeHtml(o.items.map((i) => i.name).join(", "))} — ${escapeHtml(o.userEmail || "")}${canonStatus(o.status) === "delivering" ? ` (${escapeHtml(o.pickupLocation || "no pickup location yet")})` : ""}</li>`).join("")}</ul>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
 function renderOrders() {
+  renderDeliveryQueue();
   const filter = document.getElementById("ord-filter").value;
   const rows = orders.filter((o) => !filter || canonStatus(o.status) === filter);
   document.getElementById("ord-rows").innerHTML = rows.map((o) => {
@@ -612,6 +651,7 @@ function renderOrders() {
           <input type="checkbox" data-eta-toggle="${o.id}" ${o.allowEarlyEta ? "checked" : ""} style="width:auto;margin:0 4px 0 0;vertical-align:middle">
           Allow ETA under 2 days
         </label>
+        ${canon === "delivering" ? `<button type="button" class="btn small ghost" data-missed="${o.id}" style="margin-top:6px">Customer not found</button>` : ""}
         <div data-oextras="${o.id}"></div>
       </td>
     </tr>`;
@@ -621,6 +661,8 @@ function renderOrders() {
     sel.addEventListener("change", () => onOrderStatusChange(sel)));
   document.querySelectorAll("[data-eta-toggle]").forEach((cb) =>
     cb.addEventListener("change", () => onEtaToggleChange(cb)));
+  document.querySelectorAll("[data-missed]").forEach((btn) =>
+    btn.addEventListener("click", () => onMissedDelivery(btn)));
 }
 
 function orderExtrasForm(o, kind) {
@@ -640,16 +682,14 @@ function orderExtrasForm(o, kind) {
         <button type="button" class="btn small ghost" data-xcancel>Cancel</button>
       </div>`;
   }
-  // delivering
-  const today = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
+  // delivering — pre-filled with the auto-queued window (or the next one).
+  const autoW = o.deliveryWindow?.date ? o.deliveryWindow : nextDeliveryWindow();
   return `
     <div class="form-grid two">
-      <div><label>Date<input type="date" data-xdate value="${o.deliveryWindow?.date || todayStr}"></label></div>
-      <div><label>Start time<input type="time" data-xtime value="${o.deliveryWindow?.startTime || "14:00"}"></label></div>
+      <div><label>Date<input type="date" data-xdate value="${autoW?.date || ""}"></label></div>
+      <div><label>Start time<input type="time" data-xtime value="${autoW?.startTime || ""}"></label></div>
     </div>
-    <p style="color:var(--muted);font-size:0.82rem;margin:4px 0">Delivery window is 1 hour from the start time.</p>
+    <p style="color:var(--muted);font-size:0.82rem;margin:4px 0">Fixed windows: 7:00–7:40 AM, 9:40–9:50 AM, 12:40–1:05 PM. Custom times default to a 1-hour window.</p>
     <div style="display:flex;gap:6px;margin-top:6px">
       <button type="button" class="btn small" data-xsave>Save</button>
       <button type="button" class="btn small ghost" data-xcancel>Cancel</button>
@@ -671,6 +711,33 @@ async function onEtaToggleChange(cb) {
     console.error(err);
     toast("Couldn't update: " + (err.message || err));
     if (o) cb.checked = !!o.allowEarlyEta;
+  }
+}
+
+// Customer couldn't be found during delivery: back to the queue for the
+// next day's first window.
+async function onMissedDelivery(btn) {
+  const id = btn.dataset.missed;
+  const o = orders.find((x) => x.id === id);
+  if (!o) return;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const w = firstWindowNextDay();
+  const update = {
+    status: "ready_for_delivery",
+    deliveryWindow: w,
+    missedDeliveries: (o.missedDeliveries || 0) + 1,
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    await updateDoc(doc(db, "orders", id), update);
+    Object.assign(o, update);
+    toast(`Rescheduled for ${fmtDeliveryWindow(w)}`);
+    renderOrders();
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't update: " + (err.message || err));
+    btn.disabled = false;
   }
 }
 
@@ -701,7 +768,8 @@ async function onOrderStatusChange(sel) {  const id = sel.dataset.ostatus;
         const date = box.querySelector("[data-xdate]").value;
         const startTime = box.querySelector("[data-xtime]").value;
         if (!date || !startTime) { toast("Enter a date and start time."); xsave.disabled = false; return; }
-        update.deliveryWindow = { date, startTime };
+        const endTime = windowEndFor(startTime); // fixed window end, else +60 min at render
+        update.deliveryWindow = endTime ? { date, startTime, endTime } : { date, startTime };
       }
       try {
         await updateDoc(doc(db, "orders", id), update);
@@ -720,13 +788,16 @@ async function onOrderStatusChange(sel) {  const id = sel.dataset.ostatus;
     });
     return;
   }
+  const update = { status: val, updatedAt: serverTimestamp() };
+  // Auto-queue: a ready order takes the next delivery window automatically.
+  if (val === "ready_for_delivery" && o && !o.deliveryWindow?.date) {
+    const w = nextDeliveryWindow();
+    if (w) update.deliveryWindow = w;
+  }
   try {
-    await updateDoc(doc(db, "orders", id), {
-      status: val,
-      updatedAt: serverTimestamp(),
-    });
-    if (o) o.status = val;
-    toast(`Order → ${ORDER_STATUSES.find(([v]) => v === val)[1]}`);
+    await updateDoc(doc(db, "orders", id), update);
+    if (o) Object.assign(o, update);
+    toast(`Order → ${ORDER_STATUSES.find(([v]) => v === val)[1]}${update.deliveryWindow ? ` · ${fmtDeliveryWindow(update.deliveryWindow)}` : ""}`);
   } catch (err) {
     console.error(err);
     toast("Couldn't update: " + (err.message || err));

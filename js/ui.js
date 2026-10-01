@@ -2,7 +2,7 @@
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, FIREBASE_CONFIGURED } from "./firebase.js";
-import { BRAND_NAME, ADMIN_EMAIL, CURRENCY } from "./config.js";
+import { BRAND_NAME, ADMIN_EMAIL, CURRENCY, FIRST_DELIVERY_DATE } from "./config.js";
 import { cartCount } from "./store.js";
 import { maybePromptReview } from "./reviews.js";
 import { maybePromptPickup } from "./pickup.js";
@@ -50,6 +50,70 @@ export function fmtEstimatedDelivery(leadTimeDays) {
   return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+// ---- Delivery windows: fixed school-day slots for the auto-queue ----
+export const DELIVERY_WINDOWS = [
+  { start: "07:00", end: "07:40" },
+  { start: "09:40", end: "09:50" },
+  { start: "12:40", end: "13:05" },
+];
+
+function ymd(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function isSchoolDay(d) {
+  const g = d.getDay();
+  return g !== 0 && g !== 6;
+}
+
+// Next upcoming delivery window (skips weekends; never before the first
+// delivery date). { date, startTime, endTime }.
+export function nextDeliveryWindow(from = new Date()) {
+  const fdd = firstDeliveryDate();
+  const effFrom = fdd && from < fdd ? fdd : from;
+  const d = new Date(effFrom);
+  for (let i = 0; i < 14; i++) {
+    if (isSchoolDay(d)) {
+      for (const w of DELIVERY_WINDOWS) {
+        const [h, m] = w.start.split(":").map(Number);
+        const start = new Date(d);
+        start.setHours(h, m, 0, 0);
+        if (start > effFrom) return { date: ymd(d), startTime: w.start, endTime: w.end };
+      }
+    }
+    d.setDate(d.getDate() + 1);
+    d.setHours(0, 0, 0, 0);
+  }
+  return null;
+}
+
+// First window of the next school day — used when a customer can't be found.
+// Never before the first delivery date.
+export function firstWindowNextDay(from = new Date()) {
+  const d = new Date(from);
+  d.setDate(d.getDate() + 1);
+  d.setHours(0, 0, 0, 0);
+  const fdd = firstDeliveryDate();
+  if (fdd && d < fdd) d.setTime(fdd.getTime());
+  for (let i = 0; i < 14 && !isSchoolDay(d); i++) d.setDate(d.getDate() + 1);
+  const w = DELIVERY_WINDOWS[0];
+  return { date: ymd(d), startTime: w.start, endTime: w.end };
+}
+
+// End time for a window start ("07:00" -> "07:40"); falls back to +60 min.
+export function windowEndFor(startTime) {
+  const w = DELIVERY_WINDOWS.find((x) => x.start === startTime);
+  return w ? w.end : null;
+}
+
+// Priority orders run their own ticker: the earliest slot in the delivery
+// queue — the assigned window once queued, otherwise the next upcoming one.
+export function priorityDeliveryWindow(o) {
+  if (o?.deliveryWindow?.date && o.deliveryWindow.startTime) return o.deliveryWindow;
+  return nextDeliveryWindow();
+}
+
 // ---- Order ETA: auto-calculated from Giulia's status updates ----
 // Days remaining until delivery once she sets each status. `null` means
 // "fall back to the longest product lead time snapshotted on the order".
@@ -69,16 +133,31 @@ function startOfDay(d) {
   return x;
 }
 
+// First delivery date as a local-midnight Date, or null if unconfigured.
+function firstDeliveryDate() {
+  const m = String(FIRST_DELIVERY_DATE || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+// Clamp an auto-calculated ETA: never before the first delivery date.
+function finishETA(d) {
+  const fdd = firstDeliveryDate();
+  if (fdd && startOfDay(d) < fdd) return fdd;
+  return d;
+}
+
 // Returns a Date (customer-visible ETA) or null when no ETA applies:
 // - delivering: the scheduled window date, exact — never floored.
+// - priority: null — priority orders run their own window ticker
+//   (priorityDeliveryWindow), not the day-count estimate.
 // - otherwise: (last status update) + remaining days for that status.
-//   Priority orders get a day knocked off and skip the soft floor.
-// Floors: the hard floor is always tomorrow (never same-day, for both
-// regular and priority); regular orders additionally never show under
-// today + ETA_FLOOR_DAYS unless the order has allowEarlyEta.
+// Floors (auto-calc only): never before tomorrow; regular orders also never
+// under today + ETA_FLOOR_DAYS unless allowEarlyEta; nothing auto-calcs
+// before FIRST_DELIVERY_DATE.
 export function orderETA(o) {
   const status = canonStatus(o?.status);
-  if (!o || status === "delivered" || status === "cancelled") return null;
+  if (!o || status === "delivered" || status === "cancelled" || o.priority) return null;
   if (status === "delivering") {
     const w = o.deliveryWindow?.date ? new Date(o.deliveryWindow.date + "T12:00:00") : null;
     return w && !isNaN(w) ? w : null;
@@ -90,19 +169,18 @@ export function orderETA(o) {
       .filter((n) => Number.isFinite(n) && n >= 0);
     days = leads.length ? Math.max(...leads) : 7;
   }
-  if (o.priority) days -= 1;
   const base = toDate(o.updatedAt) || toDate(o.createdAt) || new Date();
   const eta = new Date(base);
   eta.setDate(eta.getDate() + Math.round(days));
   const hardFloor = startOfDay(new Date());
   hardFloor.setDate(hardFloor.getDate() + 1);
-  if (startOfDay(eta) < hardFloor) return hardFloor;
-  if (!o.priority && !o.allowEarlyEta) {
+  if (startOfDay(eta) < hardFloor) return finishETA(hardFloor);
+  if (!o.allowEarlyEta) {
     const floor = startOfDay(new Date());
     floor.setDate(floor.getDate() + ETA_FLOOR_DAYS);
-    if (startOfDay(eta) < floor) return floor;
+    if (startOfDay(eta) < floor) return finishETA(floor);
   }
-  return eta;
+  return finishETA(eta);
 }
 
 // Should the $3 priority upgrade be offered for these product lead times?
@@ -259,7 +337,9 @@ export function fmtDeliveryWindow(dw) {
   const sm = String(dw.startTime).match(/^(\d{1,2}):(\d{2})/);
   if (!sm) return `${weekday}, ${month} ${parts[2]}`;
   const startMin = Number(sm[1]) * 60 + Number(sm[2]);
-  const endMin = startMin + 60;
+  // Fixed windows carry their own end time; legacy windows default to +60 min.
+  const em = String(dw.endTime || "").match(/^(\d{1,2}):(\d{2})/);
+  const endMin = em ? Number(em[1]) * 60 + Number(em[2]) : startMin + 60;
   const pad = (n) => String(n).padStart(2, "0");
   const endStr = `${pad(Math.floor(endMin / 60) % 24)}:${pad(endMin % 60)}`;
   const start12 = fmtTime12(dw.startTime);
