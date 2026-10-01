@@ -7,8 +7,11 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
+  TotpMultiFactorGenerator,
+  getMultiFactorResolver,
+  multiFactor,
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN, ADMIN_EMAIL, VIP_ORDER_THRESHOLD } from "./config.js";
 import { renderNav, escapeHtml, toast } from "./ui.js";
@@ -36,6 +39,11 @@ function authFormsHTML(mode) {
         <button class="btn" id="li-go" style="width:100%">Log in</button>
         <button class="btn small ghost" id="li-forgot" style="width:100%;margin-top:8px">Forgot password?</button>
       </div>
+      <div id="mfa-box" hidden>
+        <p style="color:var(--muted);font-size:0.9rem">Enter the 6-digit code from your authenticator app.</p>
+        <label>Authenticator code<input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6"></label>
+        <button class="btn" id="mfa-go" style="width:100%">Verify</button>
+      </div>
       <div id="form-signup" ${mode === "signup" ? "" : "hidden"}>
         <label>School email<input id="su-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
         <p style="color:var(--muted);font-size:0.85rem;margin:0 0 8px">Must be your <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> address — it's how we know you're from school.</p>
@@ -51,6 +59,9 @@ function authFormsHTML(mode) {
 }
 
 function wireForms(mode, setMode) {
+  // Holds the Firebase multi-factor resolver while the admin finishes the
+  // 2nd step of login (authenticator code after password).
+  let mfaResolver = null;
   const err = (m) => { document.getElementById("auth-err").textContent = m; };
   document.getElementById("tab-login").addEventListener("click", () => setMode("login"));
   document.getElementById("tab-signup").addEventListener("click", () => setMode("signup"));
@@ -62,8 +73,34 @@ function wireForms(mode, setMode) {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (e) {
+      // Admin account has authenticator 2FA enrolled: password alone isn't
+      // enough — Firebase throws and hands us a resolver for the 2nd step.
+      if (e.code === "auth/multi-factor-auth-required") {
+        mfaResolver = getMultiFactorResolver(auth, e);
+        document.getElementById("form-login").hidden = true;
+        document.getElementById("mfa-box").hidden = false;
+        document.getElementById("mfa-code").focus();
+        return;
+      }
       console.error(e);
       err(friendlyAuthError(e));
+    }
+  });
+
+  document.getElementById("mfa-go").addEventListener("click", async () => {
+    err("");
+    const code = document.getElementById("mfa-code").value.trim();
+    if (!/^\d{6}$/.test(code)) { err("Enter the 6-digit code from your authenticator app."); return; }
+    try {
+      const assertion = TotpMultiFactorGenerator.assertionForSignIn(mfaResolver.hints[0].uid, code);
+      await mfaResolver.resolveSignIn(assertion);
+      mfaResolver = null;
+      // onAuthStateChanged takes over from here.
+    } catch (e) {
+      console.error(e);
+      err(e.code === "auth/invalid-verification-code"
+        ? "That code didn't work — check your authenticator app and try again."
+        : friendlyAuthError(e));
     }
   });
 
@@ -145,6 +182,10 @@ function loggedInHTML(user) {
         <input type="checkbox" id="email-optin" style="margin-top:5px;flex:none">
         <span class="muted" style="font-size:0.9rem">Email me about drops, deals and price cuts.</span>
       </label>
+    </div>
+    <div class="auth-card" style="margin-top:12px;text-align:left" id="mfa-card">
+      <h3 style="margin:0 0 8px">Two-factor authentication</h3>
+      <p class="muted" id="mfa-status">Checking…</p>
     </div>`;
 }
 
@@ -181,7 +222,90 @@ onAuthStateChanged(auth, (user) => {
   });
   document.getElementById("logout").addEventListener("click", () => signOut(auth));
   wirePushControls(user);
+  wireMfaControls(user);
 });
+
+// Two-factor authentication (authenticator app) — available to every account.
+// Enrollment: generate a TOTP secret, show it as a QR code + manual key, verify
+// a 6-digit code, enroll. Login challenge is handled in the login form above:
+// Firebase throws auth/multi-factor-auth-required and we resolve it with the code.
+function wireMfaControls(user) {
+  const card = document.getElementById("mfa-card");
+  if (!card) return;
+
+  const render = () => {
+    const factors = multiFactor(auth.currentUser).enrolledFactors;
+    const status = document.getElementById("mfa-status");
+    if (factors.length === 0) {
+      status.innerHTML = `Add your authenticator app (Google Authenticator, 1Password, or similar) for an extra layer of security on this account.<br><br>
+        <button class="btn small" id="mfa-setup">Set up authenticator app</button>`;
+      document.getElementById("mfa-setup").addEventListener("click", startEnroll);
+    } else {
+      status.innerHTML = `<span class="status-pill delivered">on</span>
+        <span class="muted">Authenticator app is protecting this account. You'll be asked for a code each time you log in.</span><br><br>
+        <button class="btn small ghost" id="mfa-remove">Remove authenticator</button>`;
+      document.getElementById("mfa-remove").addEventListener("click", async () => {
+        try {
+          await multiFactor(auth.currentUser).unenroll(factors[0].uid);
+          await auth.currentUser.reload();
+          toast("Authenticator removed.");
+          render();
+        } catch (e) {
+          console.error(e);
+          toast("Couldn't remove it — try again in a bit.");
+        }
+      });
+    }
+  };
+
+  const startEnroll = async () => {
+    const me = auth.currentUser;
+    const status = document.getElementById("mfa-status");
+    try {
+      const session = await multiFactor(me).getSession();
+      const secret = await TotpMultiFactorGenerator.generateSecret(session);
+      const otpauth = `otpauth://totp/${encodeURIComponent(BRAND_NAME)}:${encodeURIComponent(me.email)}?secret=${secret.secretKey}&issuer=${encodeURIComponent(BRAND_NAME)}`;
+      const qrOK = typeof window.QRCode === "function";
+      status.innerHTML = `
+        <p class="muted" style="margin-top:0">${qrOK ? "Scan this with your authenticator app, then enter the 6-digit code it shows." : "Add this key to your authenticator app manually, then enter the 6-digit code it shows."}</p>
+        ${qrOK ? `<div id="mfa-qr" style="margin:8px 0"></div>` : ""}
+        <p class="muted" style="font-size:0.85rem">Manual key: <code class="inline" style="user-select:all">${escapeHtml(secret.secretKey)}</code></p>
+        <label>6-digit code<input id="mfa-enroll-code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6"></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn small" id="mfa-enroll-go">Verify and turn on</button>
+          <button class="btn small ghost" id="mfa-enroll-cancel">Cancel</button>
+        </div>
+        <p class="muted" id="mfa-enroll-err" style="font-size:0.85rem"></p>`;
+      if (qrOK) new window.QRCode(document.getElementById("mfa-qr"), { text: otpauth, width: 180, height: 180 });
+      document.getElementById("mfa-enroll-cancel").addEventListener("click", render);
+      document.getElementById("mfa-enroll-go").addEventListener("click", async () => {
+        const codeEl = document.getElementById("mfa-enroll-code");
+        const errEl = document.getElementById("mfa-enroll-err");
+        const code = codeEl.value.trim();
+        if (!/^\d{6}$/.test(code)) { errEl.textContent = "Enter the 6-digit code from your authenticator app."; return; }
+        try {
+          const assertion = TotpMultiFactorGenerator.assertionForEnrollment(secret, code);
+          await multiFactor(auth.currentUser).enroll(assertion, "Authenticator app");
+          await auth.currentUser.reload();
+          toast("Two-factor authentication is on.");
+          render();
+        } catch (e) {
+          console.error(e);
+          errEl.textContent = e.code === "auth/invalid-verification-code"
+            ? "That code didn't work — check your authenticator app and try again."
+            : "Couldn't finish setup — sign out and back in, then try again.";
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      status.innerHTML = `<span class="muted">Couldn't start setup — sign out and back in, then try again.</span><br><br>
+        <button class="btn small ghost" id="mfa-retry">Back</button>`;
+      document.getElementById("mfa-retry").addEventListener("click", render);
+    }
+  };
+
+  render();
+}
 
 // Deal alerts + VIP progress + email preference on the account page.
 async function wirePushControls(user) {
