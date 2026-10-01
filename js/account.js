@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
@@ -33,6 +34,7 @@ function authFormsHTML(mode) {
         <label>School email<input id="li-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
         <label>Password<input id="li-pass" type="password" autocomplete="current-password"></label>
         <button class="btn" id="li-go" style="width:100%">Log in</button>
+        <button class="btn small ghost" id="li-forgot" style="width:100%;margin-top:8px">Forgot password?</button>
       </div>
       <div id="form-signup" ${mode === "signup" ? "" : "hidden"}>
         <label>School email<input id="su-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
@@ -59,6 +61,19 @@ function wireForms(mode, setMode) {
     const pass = document.getElementById("li-pass").value;
     try {
       await signInWithEmailAndPassword(auth, email, pass);
+    } catch (e) {
+      console.error(e);
+      err(friendlyAuthError(e));
+    }
+  });
+
+  document.getElementById("li-forgot").addEventListener("click", async () => {
+    err("");
+    const email = document.getElementById("li-email").value.trim();
+    if (!email) { err("Enter your email first, then click Forgot password."); return; }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast("Password reset email sent — check your inbox.");
     } catch (e) {
       console.error(e);
       err(friendlyAuthError(e));
