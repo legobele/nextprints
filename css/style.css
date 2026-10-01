@@ -50,7 +50,7 @@ a:hover { text-decoration: underline; }
 .brand { font-size: 1.15rem; font-weight: 700; color: var(--text); letter-spacing: 0; }
 .brand:hover { text-decoration: none; }
 .nav-links { display: flex; gap: 16px; align-items: center; font-size: 0.95rem; }
-.nav-links a { color: var(--muted); font-weight: 500; }
+.nav-links a { color: var(--muted); font-weight: 500; padding: 10px 6px; }
 .nav-links a.active, .nav-links a:hover { color: var(--text); text-decoration: none; }
 .cart-badge {
   display: inline-block; min-width: 20px; text-align: center;
@@ -100,7 +100,7 @@ a:hover { text-decoration: underline; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.ghost { background: #fff; border: 1px solid var(--line); color: var(--text); }
 .btn.ghost:hover { background: var(--bg-2); }
-.btn.small { padding: 8px 14px; font-size: 0.85rem; }
+.btn.small { padding: 8px 14px; font-size: 0.85rem; min-height: 44px; }
 .btn.danger { background: var(--red); }
 .btn.danger:hover { background: #991b1b; }
 
@@ -172,7 +172,7 @@ input[type="file"] { padding: 8px; }
 .spec-table th, .spec-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .spec-table th { color: var(--muted); font-weight: 600; width: 40%; text-transform: none; letter-spacing: 0; font-size: 0.92rem; }
 .qty-stepper { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
-.qty-stepper button { width: 40px; height: 40px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: var(--text); font-size: 1.2rem; cursor: pointer; }
+.qty-stepper button { width: 44px; height: 44px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: var(--text); font-size: 1.2rem; cursor: pointer; }
 .qty-stepper span { font-size: 1.15rem; font-weight: 700; min-width: 30px; text-align: center; }
 
 /* ---------- cart / orders ---------- */
@@ -182,10 +182,10 @@ input[type="file"] { padding: 8px; }
 }
 .cart-line { display: flex; gap: 12px; align-items: center; }
 .cart-line img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; }
-.cart-line .info { flex: 1; }
+.cart-line .info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .cart-line .info h4 { margin: 0 0 4px; font-size: 0.95rem; }
 .totals { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin: 14px 0; }
-.totals .row { display: flex; justify-content: space-between; padding: 4px 0; }
+.totals .row { display: flex; justify-content: space-between; padding: 4px 0; overflow-wrap: anywhere; }
 .totals .row.grand { font-size: 1.15rem; font-weight: 700; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 10px; }
 .promo-row { display: flex; gap: 8px; }
 .promo-row input { margin: 0; }
@@ -233,7 +233,13 @@ tr:last-child td { border-bottom: none; }
 .img-list { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .img-list .img-thumb { position: relative; }
 .img-list img { width: 90px; height: 68px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
-.img-list button { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: none; background: var(--red); color: #fff; cursor: pointer; font-size: 0.8rem; line-height: 1; }
+.img-list button {
+  position: absolute; top: -8px; right: -8px;
+  width: 44px; height: 44px; padding: 10px;
+  /* Hit area is 44px; background-clip keeps the visible × circle at 24px. */
+  background: var(--red) content-box; border-radius: 50%; border: none;
+  color: #fff; cursor: pointer; font-size: 0.8rem; line-height: 1;
+}
 
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
 code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; font-size: 0.88em; border: 1px solid var(--line); }
@@ -265,7 +271,7 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px;
   padding: 1px 8px; margin-left: 8px; color: var(--muted); white-space: nowrap;
 }
-.order-meta { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.order-meta { font-size: 0.8rem; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
 .pickup-flag {
   display: inline-block; background: var(--yellow-bg); border: 1px solid #f3dfba;
   border-radius: 4px; padding: 2px 8px; color: var(--text); font-weight: 600;
@@ -275,6 +281,10 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
 .stepper-step.reprint-step .stepper-dot { border-color: var(--red); }
 .stepper-step.reprint-step.done .stepper-dot { background: var(--red); border-color: var(--red); }
 .stepper-step.reprint-step.current .stepper-dot { box-shadow: 0 0 0 4px var(--red-bg); }
+/* Reprint sub-step with no done/current state (order is printing again after
+   a reprint was queued): keep the label legible like the other steps instead
+   of rendering muted and half-styled. */
+.stepper-step.reprint-step .stepper-label { color: var(--text); }
 
 /* ---------- ratings ---------- */
 .rating-line { font-size: 0.88rem; color: var(--text); font-weight: 600; }
@@ -294,7 +304,7 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
 .stars { display: flex; gap: 4px; margin: 8px 0 4px; }
 .stars button {
   background: none; border: none; font-size: 2rem; cursor: pointer;
-  color: #cbd5e1; padding: 0 2px; line-height: 1;
+  color: #cbd5e1; padding: 6px 2px; line-height: 1;
 }
 .stars button.lit { color: #d97706; }
 
@@ -304,3 +314,20 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
 .variant-block label { display: block; margin: 8px 0; }
 .variant-block select { margin-top: 4px; }
 .variant-summary { margin: 8px 0 0; font-size: 0.95rem; }
+
+/* ============================================================
+   Mobile tweaks (390px QA) — tap targets + small-screen layout.
+   Corporate styling unchanged.
+   ============================================================ */
+@media (max-width: 480px) {
+  /* Single-column product grid on phones. */
+  .grid { grid-template-columns: 1fr; }
+
+  /* Batch tags may wrap instead of forcing horizontal scroll. */
+  .batch-tag { white-space: normal; }
+
+  /* Admin variant option rows: js/admin.js sets inline
+     grid-template-columns:1fr 140px 44px — !important is the only
+     CSS-side way to restack on narrow screens. */
+  #pf-variants [data-opt] { grid-template-columns: 1fr !important; }
+}

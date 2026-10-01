@@ -5,7 +5,7 @@
 // one modal per unreviewed product. True push notifications would need
 // Firebase Cloud Messaging (VAPID key + service worker) — out of scope.
 
-import { collection, getDocs, addDoc, query, where, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { escapeHtml, toast } from "./ui.js";
 
@@ -97,7 +97,17 @@ function showReviewModal(user, productId, productName) {
     const btn = overlay.querySelector("#rv-submit");
     btn.disabled = true;
     try {
-      await addDoc(collection(db, "reviews"), {
+      try { await user.reload(); } catch (e) { console.warn(e); }
+      if (!user.emailVerified) {
+        toast("Verify your email first — check your inbox.");
+        btn.disabled = false;
+        return;
+      }
+      // Force-refresh the ID token: Firestore rules read email_verified from
+      // the token, which stays stale for up to an hour after verification.
+      try { await user.getIdToken(true); } catch (e) { console.warn(e); }
+      // Deterministic ID: one review per user per product.
+      await setDoc(doc(db, "reviews", `${user.uid}_${productId}`), {
         productId,
         userId: user.uid,
         email: user.email,

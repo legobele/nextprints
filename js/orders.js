@@ -54,7 +54,8 @@ function trackerHTML(o) {
     steps.push({ key: v, label: text, i });
     // Reprint sub-step between Printing and Ready for delivery.
     if (v === "printing" && (o.reprintHistory || []).length) {
-      steps.push({ key: "reprint", label: `Reprinting — ${fmtBatch(reprintBatch(o))}`, i: i + 0.5, note: true });
+      const rb = fmtBatch(reprintBatch(o));
+      steps.push({ key: "reprint", label: rb ? `Reprinting — ${rb}` : "Reprinting", i: i + 0.5, note: true });
     }
   });
   return `
@@ -86,7 +87,10 @@ function statusHint(o) {
     case "queued": return o.statusBatch ? `Queued for production — ${fmtBatch(o.statusBatch)}.` : "Queued for production.";
     case "printing": return "Printing — your item is being produced.";
     case "ready_for_delivery": return "Ready for delivery.";
-    case "reprint_queued": return `Print failed — printing again on ${fmtBatch(reprintBatch(o))}.`;
+    case "reprint_queued": {
+      const rb = fmtBatch(reprintBatch(o));
+      return rb ? `Print failed — printing again on ${rb}.` : "Print failed — printing again.";
+    }
     case "delivering": {
       const w = fmtDeliveryWindow(o.deliveryWindow);
       return w ? `Delivering ${w}.` : "Out for delivery.";

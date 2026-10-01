@@ -1,25 +1,29 @@
 // Storefront: hero, live-preorder rail, product grid, limited deals.
 
 import { BRAND_NAME } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, fmtEstimatedDelivery, toDate, startCountdowns, placeholderSVG } from "./ui.js";
-import { fetchProducts, fetchDeals, getActivePrice } from "./store.js";
+import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, startCountdowns, placeholderSVG } from "./ui.js";
+import { fetchProducts, fetchDeals, chargedPrice } from "./store.js";
 import { fetchReviews, ratingLineHTML } from "./reviews.js";
 
 renderNav("shop");
 document.title = `${BRAND_NAME} · Shop`;
 document.getElementById("hero-title").textContent = BRAND_NAME;
 
-function cardHTML(p, reviews) {
+function cardHTML(p, reviews, deals) {
   const now = new Date();
-  const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
+  const { price, deal, isPreorder, endsAt } = chargedPrice(p, deals, now);
   const img = (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320));
+  // Scheduled products are hidden entirely by isProductVisible(), so there
+  // is no "upcoming preorder" branch here.
   const badge = isPreorder
     ? `<span class="badge preorder">Pre-order</span>
        ${endsAt ? `<span class="countdown">Ends <span data-countdown-to="${endsAt.getTime()}"></span></span>` : ""}`
-    : upcomingPreorder && startsAt
-    ? `<span class="badge soon">Pre-orders open ${fmtDate(startsAt)}</span>`
+    : deal
+    ? `<span class="badge deal">Limited deal</span>`
     : "";
   const priceRow = isPreorder
+    ? `<div class="price-row"><span class="price">${fmtMoney(price)}</span><span class="price strike">${fmtMoney(p.price)}</span></div>`
+    : deal
     ? `<div class="price-row"><span class="price">${fmtMoney(price)}</span><span class="price strike">${fmtMoney(p.price)}</span></div>`
     : `<div class="price-row"><span class="price">${fmtMoney(price)}</span></div>`;
   const eta = fmtEstimatedDelivery(p.leadTimeDays);
@@ -76,16 +80,16 @@ async function main() {
 
     // Live preorders rail
     const now = new Date();
-    const live = products.filter((p) => getActivePrice(p, now).isPreorder);
+    const live = products.filter((p) => chargedPrice(p, deals, now).isPreorder);
     if (live.length) {
       document.getElementById("preorders-heading").hidden = false;
-      document.getElementById("preorder-grid").innerHTML = live.map((p) => cardHTML(p, reviews)).join("");
+      document.getElementById("preorder-grid").innerHTML = live.map((p) => cardHTML(p, reviews, deals)).join("");
     }
 
     // Full grid
     const grid = document.getElementById("product-grid");
     grid.innerHTML = products.length
-      ? products.map((p) => cardHTML(p, reviews)).join("")
+      ? products.map((p) => cardHTML(p, reviews, deals)).join("")
       : `<div class="empty">No products available at this time. Please check back later.</div>`;
 
     startCountdowns();

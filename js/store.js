@@ -172,6 +172,32 @@ export async function fetchDeals() {
     });
 }
 
+// The currently active deal for a product (window-checked), or null.
+// fetchDeals() already filters to active windows; this double-checks in
+// case a caller passes an unfiltered list.
+export function dealForProduct(productId, deals, now = new Date()) {
+  for (const d of deals || []) {
+    if (d.productId !== productId) continue;
+    if (d.active === false) continue;
+    const start = toDate(d.startsAt);
+    const end = toDate(d.endsAt);
+    if ((!start || now >= start) && (!end || now <= end)) return d;
+  }
+  return null;
+}
+
+// The price a customer is actually charged: an active deal wins, then the
+// product's own preorder/regular tiers. Advertised and charged prices must
+// always agree, so every price display and cart line goes through this.
+export function chargedPrice(product, deals, now = new Date()) {
+  const { price: basePrice, isPreorder, endsAt } = getActivePrice(product, now);
+  const deal = dealForProduct(product.id, deals, now);
+  if (deal && Number(deal.dealPrice) >= 0) {
+    return { price: Number(deal.dealPrice), deal, isPreorder, endsAt };
+  }
+  return { price: basePrice, deal: null, isPreorder, endsAt };
+}
+
 export function productImage(product, ui) {
   // ui = the ui module's placeholderSVG (passed in to avoid a cycle)
   if (product.images && product.images.length) return product.images[0];

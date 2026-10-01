@@ -2,7 +2,7 @@
 
 import { BRAND_NAME } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, isProductVisible, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
-import { fetchProduct, getActivePrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, deltaSuffix, round2 } from "./store.js";
+import { fetchProduct, fetchDeals, chargedPrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, deltaSuffix, round2 } from "./store.js";
 import { ratingLineHTML } from "./reviews.js";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -34,27 +34,37 @@ async function main() {
     reviews = rsnap.docs.map((d) => d.data());
   } catch (e) { console.warn("reviews load failed", e); }
 
+  // Reviews are restricted to verified students; signed-out visitors get the
+  // empty state ("No reviews yet") instead of an error or a hang.
+  let deals = [];
+  try { deals = await fetchDeals(); } catch (e) { console.warn("deals load failed", e); }
+
   const now = new Date();
-  const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
+  const { price, deal, isPreorder, endsAt } = chargedPrice(p, deals, now);
+  const dealEnd = deal ? toDate(deal.endsAt) : null;
   const images = (p.images && p.images.length ? p.images : [placeholderSVG(p.name, 270, 320)]);
   const variants = sanitizeVariants(p.variants);
 
   let tierHTML;
-  if (isPreorder) {
+  if (deal) {
+    // An active deal is the charged price (and the advertised one) — it wins
+    // over preorder/regular tiers.
+    tierHTML = `
+      <div class="tier-box">
+        <div class="row"><span>Limited deal</span><strong>${fmtMoney(price)}</strong></div>
+        <div class="row"><span>Regular price</span><span>${fmtMoney(p.price)}</span></div>
+        ${dealEnd ? `<div class="row"><span>Deal ends</span><span class="countdown"><span data-countdown-to="${dealEnd.getTime()}"></span> (${fmtDate(dealEnd)})</span></div>` : ""}
+      </div>`;
+  } else if (isPreorder) {
     tierHTML = `
       <div class="tier-box">
         <div class="row"><span>Pre-order price</span><strong>${fmtMoney(price)}</strong></div>
         <div class="row"><span>Regular price after pre-order</span><span>${fmtMoney(p.price)}</span></div>
         ${endsAt ? `<div class="row"><span>Pre-order ends</span><span class="countdown"><span data-countdown-to="${endsAt.getTime()}"></span> (${fmtDate(endsAt)})</span></div>` : ""}
       </div>`;
-  } else if (upcomingPreorder && startsAt) {
-    tierHTML = `
-      <div class="tier-box">
-        <div class="row"><span>Pre-orders open</span><strong>${fmtDate(startsAt)}</strong></div>
-        <div class="row"><span>Pre-order price</span><span>${fmtMoney(p.preorderPrice)}</span></div>
-        <div class="row"><span>Regular price</span><span>${fmtMoney(p.price)}</span></div>
-      </div>`;
   } else {
+    // Scheduled products are hidden entirely by isProductVisible(), so there
+    // is no "upcoming preorder" branch here.
     tierHTML = `
       <div class="tier-box">
         <div class="row"><span>Price</span><strong>${fmtMoney(price)}</strong></div>
@@ -82,6 +92,7 @@ async function main() {
       </div>
       <div>
         ${isPreorder ? `<span class="badge preorder">Pre-order</span>` : ""}
+        ${deal ? `<span class="badge deal">Limited deal</span>` : ""}
         <h1 style="margin:8px 0">${escapeHtml(p.name)}</h1>
         ${ratingLineHTML(reviews, p.id)}
         ${p.colorsNote ? `<p style="color:var(--muted)">${escapeHtml(p.colorsNote)}</p>` : ""}

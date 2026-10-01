@@ -29,6 +29,11 @@ export async function fetchPickupMap(user) {
 }
 
 export async function savePickupLocation(user, orderId, location) {
+  try { await user.reload(); } catch (e) { console.warn(e); }
+  if (!user.emailVerified) throw new Error("Email is not verified.");
+  // Force-refresh the ID token: Firestore rules read email_verified from the
+  // token, which stays stale for up to an hour after verification otherwise.
+  try { await user.getIdToken(true); } catch (e) { console.warn(e); }
   await setDoc(doc(db, "pickupLocations", orderId), {
     orderId,
     userId: user.uid,

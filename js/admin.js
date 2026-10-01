@@ -50,6 +50,9 @@ function numOrNull(v) {
 
 /* ---------- boot ---------- */
 
+let adminWired = false; // wire* handlers must attach exactly once, even if
+                           // she signs out and back in without reloading.
+
 onAuthStateChanged(auth, async (user) => {
   const gate = document.getElementById("gate");
   const panel = document.getElementById("admin-panel");
@@ -66,12 +69,15 @@ onAuthStateChanged(auth, async (user) => {
   }
   gate.hidden = true;
   panel.hidden = false;
-  wireTabs();
-  wireProducts();
-  wireDeals();
-  wirePromos();
-  wireOrders();
-  document.getElementById("seed-btn").addEventListener("click", onSeed);
+  if (!adminWired) {
+    adminWired = true;
+    wireTabs();
+    wireProducts();
+    wireDeals();
+    wirePromos();
+    wireOrders();
+    document.getElementById("seed-btn").addEventListener("click", onSeed);
+  }
   await refreshAll();
 });
 
@@ -87,7 +93,22 @@ function wireTabs() {
 }
 
 async function refreshAll() {
-  await Promise.all([refreshProducts(), refreshDeals(), refreshPromos(), refreshOrders()]);
+  try {
+    await Promise.all([refreshProducts(), refreshDeals(), refreshPromos(), refreshOrders()]);
+  } catch (err) {
+    console.error("admin refresh failed", err);
+    toast("Couldn't load the admin data. Check your connection and reload the page.");
+    // A silently empty panel hides the failure — show a visible error box.
+    const panel = document.getElementById("admin-panel");
+    if (panel && !document.getElementById("admin-load-error")) {
+      const box = document.createElement("div");
+      box.className = "error-box";
+      box.id = "admin-load-error";
+      box.style.margin = "12px 0";
+      box.textContent = "Couldn't load shop data (products, deals, promo codes, orders). Your connection may be down — reload the page to try again.";
+      panel.prepend(box);
+    }
+  }
 }
 
 /* ---------- products ---------- */
@@ -124,11 +145,17 @@ async function refreshProducts() {
     const pre = p.preorderPrice != null
       ? `${fmtMoney(p.preorderPrice)}${toDate(p.preorderEndsAt) ? ` → ${fmtDate(p.preorderEndsAt)}` : ""}`
       : "—";
+    const start = toDate(p.preorderStartAt);
+    const statusText = p.active === false
+      ? "hidden"
+      : (start && start.getTime() > Date.now()
+        ? `scheduled · ${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+        : "live");
     return `<tr>
       <td><strong>${escapeHtml(p.name)}</strong><br><span style="color:var(--muted)">${escapeHtml(p.colorsNote || "")}</span></td>
       <td>${fmtMoney(p.price)}</td>
       <td>${escapeHtml(pre)}</td>
-      <td>${p.active === false ? "hidden" : (toDate(p.preorderStartAt)?.getTime() > Date.now() ? "scheduled" : "live")}</td>
+      <td>${escapeHtml(statusText)}</td>
       <td style="white-space:nowrap">
         <button class="btn small ghost" data-pedit="${p.id}">Edit</button>
         <button class="btn small danger" data-pdel="${p.id}">Delete</button>
@@ -254,6 +281,10 @@ function showProductForm(p) {
   }));
   renderVariantEditor();
   document.getElementById("prod-form").hidden = false;
+  // Re-enable the submit button: a previous successful save leaves it
+  // disabled (double-submit guard), and the form is reused for the next save.
+  const submit = document.querySelector('#prod-form button[type="submit"]');
+  if (submit) submit.disabled = false;
   document.getElementById("prod-form").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -311,7 +342,10 @@ async function saveProduct(e) {
 }
 
 async function onSeed() {
+  const btn = document.getElementById("seed-btn");
+  if (btn.disabled) return; // already seeding — ignore double taps
   if (!confirm("Add the 3 demo products (gear shifter tiers) to Firestore?")) return;
+  btn.disabled = true;
   try {
     const ids = await seedProducts(db);
     toast(`Seeded ${ids.length} products.`);
@@ -319,6 +353,8 @@ async function onSeed() {
   } catch (err) {
     console.error(err);
     toast("Seeding failed: " + (err.message || err));
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -371,7 +407,15 @@ function showDealForm(d) {
   editingDealId = d ? d.id : null;
   document.getElementById("deal-form-title").textContent = d ? "Edit deal" : "New deal";
   document.getElementById("df-product").innerHTML = products
-    .map((p) => `<option value="${p.id}" ${d && d.productId === p.id ? "selected" : ""}>${escapeHtml(p.name)}${p.active === false ? " (hidden)" : ""}</option>`)
+    .map((p) => {
+      // Mark products that can't be bought, so deals aren't attached to
+      // invisible products.
+      const start = toDate(p.preorderStartAt);
+      const tag = p.active === false
+        ? " (hidden)"
+        : (start && start.getTime() > Date.now() ? ` (scheduled — hidden until ${fmtDate(start)})` : "");
+      return `<option value="${p.id}" ${d && d.productId === p.id ? "selected" : ""}>${escapeHtml(p.name)}${tag}</option>`;
+    })
     .join("");
   document.getElementById("df-title").value = d?.title || "";
   document.getElementById("df-price").value = d?.dealPrice ?? "";
@@ -379,6 +423,8 @@ function showDealForm(d) {
   document.getElementById("df-end").value = dateToDtLocal(d?.endsAt);
   document.getElementById("df-active").checked = d ? d.active !== false : true;
   document.getElementById("deal-form").hidden = false;
+  const submit = document.querySelector('#deal-form button[type="submit"]');
+  if (submit) submit.disabled = false;
 }
 
 async function saveDeal(e) {
@@ -395,7 +441,7 @@ async function saveDeal(e) {
     active: document.getElementById("df-active").checked,
     updatedAt: serverTimestamp(),
   };
-  if (!data.title || !(data.dealPrice >= 0)) { toast("Title and deal price are required."); return; }
+  if (!data.title || !(data.dealPrice >= 0)) { toast("Title and deal price are required."); btn.disabled = false; return; }
   try {
     if (editingDealId) await updateDoc(doc(db, "deals", editingDealId), data);
     else await addDoc(collection(db, "deals"), { ...data, createdAt: serverTimestamp() });
@@ -462,6 +508,8 @@ function showPromoForm(c) {
   document.getElementById("cf-exp").value = dateToDtLocal(c?.expiresAt);
   document.getElementById("cf-active").checked = c ? c.active !== false : true;
   document.getElementById("promo-form").hidden = false;
+  const submit = document.querySelector('#promo-form button[type="submit"]');
+  if (submit) submit.disabled = false;
 }
 
 async function savePromo(e) {
@@ -478,7 +526,7 @@ async function savePromo(e) {
     active: document.getElementById("cf-active").checked,
     updatedAt: serverTimestamp(),
   };
-  if (!code || !(data.value >= 0) || !(data.maxUses >= 1)) { toast("Code, value and max uses are required."); return; }
+  if (!code || !(data.value >= 0) || !(data.maxUses >= 1)) { toast("Code, value and max uses are required."); btn.disabled = false; return; }
   try {
     if (editingPromoCode) {
       await updateDoc(doc(db, "promoCodes", editingPromoCode), data);
@@ -612,11 +660,14 @@ async function onOrderStatusChange(sel) {
       box.innerHTML = "";
       sel.value = canonStatus(o.status); // revert the dropdown
     });
-    box.querySelector("[data-xsave]").addEventListener("click", async () => {
+    const xsave = box.querySelector("[data-xsave]");
+    xsave.addEventListener("click", async () => {
+      if (xsave.disabled) return; // already saving — ignore double taps
+      xsave.disabled = true;
       const update = { status: val, updatedAt: serverTimestamp() };
       if (val === "queued" || val === "reprint_queued") {
         const batch = box.querySelector("[data-xbatch]").value.trim();
-        if (!batch) { toast("Enter a batch number."); return; }
+        if (!batch) { toast("Enter a batch number."); xsave.disabled = false; return; }
         update.statusBatch = batch;
         if (val === "reprint_queued") {
           update.reprintHistory = arrayUnion({ batch, at: serverTimestamp() });
@@ -624,7 +675,7 @@ async function onOrderStatusChange(sel) {
       } else if (val === "delivering") {
         const date = box.querySelector("[data-xdate]").value;
         const startTime = box.querySelector("[data-xtime]").value;
-        if (!date || !startTime) { toast("Enter a date and start time."); return; }
+        if (!date || !startTime) { toast("Enter a date and start time."); xsave.disabled = false; return; }
         update.deliveryWindow = { date, startTime };
       }
       try {
@@ -638,6 +689,8 @@ async function onOrderStatusChange(sel) {
       } catch (err) {
         console.error(err);
         toast("Couldn't update: " + (err.message || err));
+        xsave.disabled = false;
+        sel.value = canonStatus(o.status); // revert to the saved value
       }
     });
     return;
@@ -652,5 +705,6 @@ async function onOrderStatusChange(sel) {
   } catch (err) {
     console.error(err);
     toast("Couldn't update: " + (err.message || err));
+    if (o) sel.value = canonStatus(o.status); // revert to the saved value
   }
 }

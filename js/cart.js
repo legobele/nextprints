@@ -5,7 +5,7 @@ import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverT
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge } from "./ui.js";
-import { getCart, setQty, clearCart, fetchProduct, getActivePrice, round2 } from "./store.js";
+import { getCart, setQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2 } from "./store.js";
 
 renderNav("cart");
 document.title = `Cart · ${BRAND_NAME}`;
@@ -26,11 +26,16 @@ function discountFor(subtotal, promo) {
 async function loadLines() {
   const cart = getCart();
   lines = [];
+  let deals = [];
+  try { deals = await fetchDeals(); } catch (e) { console.warn("deals load failed", e); }
   for (const l of cart) {
     let p = null;
     try { p = await fetchProduct(l.productId); } catch (e) { console.warn(e); }
     if (!p) continue; // product removed — skip silently
-    const { price, isPreorder } = getActivePrice(p);
+    // Base price is re-resolved live (preorder windows and deals change);
+    // the variant delta snapshot adjusts it. An active deal is the charged
+    // price, matching what the shop advertises.
+    const { price, isPreorder } = chargedPrice(p, deals);
     lines.push({
       productId: p.id, qty: l.qty,
       variantKey: l.variantKey || "",
@@ -143,7 +148,13 @@ async function onApplyPromo() {
     if (c.active === false) throw new Error("This code is inactive.");
     if (c.expiresAt && toDate(c.expiresAt) < now) throw new Error("This code expired.");
     if ((c.usedCount || 0) >= (c.maxUses ?? Infinity)) throw new Error("This code is fully redeemed.");
-    appliedPromo = { code, type: c.type, value: Number(c.value) };
+    // Validate the promo shape before applying: a malformed doc would apply
+    // a NaN discount and block checkout until removed.
+    const value = Number(c.value);
+    if ((c.type !== "percent" && c.type !== "fixed") || !Number.isFinite(value) || value < 0) {
+      throw new Error("That code isn't valid.");
+    }
+    appliedPromo = { code, type: c.type, value };
     toast(`Promo applied: ${promoLabel(appliedPromo)}`);
     render();
   } catch (err) {
@@ -216,6 +227,7 @@ async function placeOrder() {
   }
 
   const btn = document.getElementById("place-order");
+  const btnLabel = btn.textContent; // e.g. "Place order · $8.00 cash on pickup"
   btn.disabled = true;
   btn.textContent = "Placing order…";
 
@@ -272,9 +284,13 @@ async function placeOrder() {
     window.scrollTo(0, 0);
   } catch (err) {
     console.error(err);
-    toast(err.message || "Couldn't place the order. Try again.");
+    // Translate Firestore permission errors into something human.
+    const msg = /missing or insufficient permissions/i.test(String(err.message || err))
+      ? "We couldn't place your order due to a permissions issue. Try signing out and back in, then try again."
+      : (err.message || "Couldn't place the order. Try again.");
+    toast(msg);
     btn.disabled = false;
-    btn.textContent = "Place order";
+    btn.textContent = btnLabel; // restore the full original label
     await reload();
   }
 }
