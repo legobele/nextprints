@@ -3,7 +3,7 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
-import { BRAND_NAME, SCHOOL_DOMAIN, PRIORITY_FEE } from "./config.js";
+import { BRAND_NAME, PRIORITY_FEE } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge, priorityOfferedFor } from "./ui.js";
 import { getCart, changeQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2, variantImages, selectionsFromKey } from "./store.js";
 
@@ -126,7 +126,7 @@ function render() {
       </select>
     </label>` : ""}
     <button class="btn" id="place-order" style="width:100%;margin-top:8px">Place order · ${fmtMoney(total)} cash on pickup</button>
-    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12, plus teachers.</p>
+    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified email to order. NextPrints serves grades 8–12, plus teachers.</p>
   `;
 
   // qty buttons — race-free: each tap nudges the LIVE cart by a delta
@@ -337,12 +337,9 @@ async function placeOrder() {
   } catch (err) {
     console.error(err);
     // Translate Firestore permission errors into something human.
-    // Non-school emails get the real reason; everyone else gets the retry hint.
     let msg = err.message || "Couldn't place the order. Try again.";
     if (/missing or insufficient permissions/i.test(String(err.message || err))) {
-      msg = (user.email && !user.email.endsWith("@intermetro.edu"))
-        ? "Orders need a verified @intermetro.edu email — sign in with your school account."
-        : "We couldn't place your order due to a permissions issue. Try signing out and back in, then try again.";
+      msg = "We couldn't place your order due to a permissions issue. Make sure your email is verified, then try signing out and back in.";
     }
     toast(msg);
     btn.disabled = false;

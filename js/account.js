@@ -13,17 +13,15 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
-import { BRAND_NAME, SCHOOL_DOMAIN, ADMIN_EMAIL, VIP_ORDER_THRESHOLD } from "./config.js";
+import { BRAND_NAME, VIP_ORDER_THRESHOLD } from "./config.js";
 import { renderNav, escapeHtml, toast } from "./ui.js";
 import { pushPermissionState, enablePush } from "./messaging.js";
 
 renderNav("account");
 document.title = `Account · ${BRAND_NAME}`;
 
-function schoolEmailOK(email) {
-  const e = email.trim().toLowerCase();
-  // The shop owner signs up with a non-school email; everyone else needs @intermetro.edu.
-  return e.endsWith(`@${SCHOOL_DOMAIN}`) || e === ADMIN_EMAIL.toLowerCase();
+function emailOK(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 function authFormsHTML(mode) {
@@ -34,7 +32,7 @@ function authFormsHTML(mode) {
         <button id="tab-signup" class="${mode === "signup" ? "active" : ""}">Sign up</button>
       </div>
       <div id="form-login" ${mode === "login" ? "" : "hidden"}>
-        <label>School email<input id="li-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
+        <label>Email<input id="li-email" type="email" placeholder="you@example.com" autocomplete="email"></label>
         <label>Password<input id="li-pass" type="password" autocomplete="current-password"></label>
         <button class="btn" id="li-go" style="width:100%">Log in</button>
         <button class="btn small ghost" id="li-forgot" style="width:100%;margin-top:8px">Forgot password?</button>
@@ -45,8 +43,8 @@ function authFormsHTML(mode) {
         <button class="btn" id="mfa-go" style="width:100%">Verify</button>
       </div>
       <div id="form-signup" ${mode === "signup" ? "" : "hidden"}>
-        <label>School email<input id="su-email" type="email" placeholder="you@${SCHOOL_DOMAIN}" autocomplete="email"></label>
-        <p style="color:var(--muted);font-size:0.85rem;margin:0 0 8px">Must be your <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> address — it's how we know you're from school.</p>
+        <label>Email<input id="su-email" type="email" placeholder="you@example.com" autocomplete="email"></label>
+        <p style="color:var(--muted);font-size:0.85rem;margin:0 0 8px">Any email works — we'll send a verification link, and checkout stays blocked until you verify.</p>
         <label>Password (6+ characters)<input id="su-pass" type="password" autocomplete="new-password"></label>
         <label style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;cursor:pointer;margin:4px 0 8px">
           <input type="checkbox" id="su-email-optin" checked style="margin-top:5px;flex:none">
@@ -121,7 +119,7 @@ function wireForms(mode, setMode) {
     err("");
     const email = document.getElementById("su-email").value.trim();
     const pass = document.getElementById("su-pass").value;
-    if (!schoolEmailOK(email)) { err(`Use your @${SCHOOL_DOMAIN} email.`); return; }
+    if (!emailOK(email)) { err("Enter a valid email address."); return; }
     if (pass.length < 6) { err("Password needs at least 6 characters."); return; }
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);

@@ -18,11 +18,11 @@ service cloud.firestore {
         && request.auth.token.email == "legobele@gmail.com";
     }
 
-    // Signed in + clicked the verification link + school domain.
-    function isVerifiedStudent() {
+    // Signed in + clicked the verification link. (The @intermetro.edu
+    // domain gate was dropped Oct 1, 2026 — any verified email may order.)
+    function isVerifiedEmail() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.matches(".*@intermetro\\.edu$");
+        && request.auth.token.email_verified == true;
     }
 
     // Catalog: everyone reads, only admin writes.
@@ -40,13 +40,13 @@ service cloud.firestore {
       // Shopper checkout looks up a code by its exact ID (tx.get);
       // collection listing is denied to everyone except admins so
       // promo codes can't be enumerated.
-      allow get: if isAdmin() || isVerifiedStudent();
+      allow get: if isAdmin() || isVerifiedEmail();
       allow list: if isAdmin();
       allow create, delete: if isAdmin();
       // Shoppers may ONLY bump usedCount by exactly 1 when placing an
       // order (the client does this inside the order transaction).
       allow update: if isAdmin() || (
-        isVerifiedStudent()
+        isVerifiedEmail()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usedCount"])
         && request.resource.data.usedCount == resource.data.usedCount + 1
       );
@@ -57,7 +57,7 @@ service cloud.firestore {
       // placing test orders), and the order must belong to the signer,
       // start as "pending", and be for a grade we actually serve (8th–12th,
       // plus teachers).
-      allow create: if (isVerifiedStudent() || isAdmin())
+      allow create: if (isVerifiedEmail() || isAdmin())
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.status == "pending"
@@ -90,8 +90,8 @@ service cloud.firestore {
     // product — the doc ID must be `${uid}_${productId}`. Only admin
     // edits/deletes.
     match /reviews/{id} {
-      allow read: if isVerifiedStudent();
-      allow create: if isVerifiedStudent()
+      allow read: if isVerifiedEmail();
+      allow create: if isVerifiedEmail()
         && id == request.auth.uid + "_" + request.resource.data.productId
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.email == request.auth.token.email
@@ -109,7 +109,7 @@ service cloud.firestore {
         || (request.auth != null && resource.data.userId == request.auth.uid);
       // The writer must own the order this pickup location belongs to.
       // (Admin can write too, for test orders placed from the admin account.)
-      allow create: if (isVerifiedStudent() || isAdmin())
+      allow create: if (isVerifiedEmail() || isAdmin())
         && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.email == request.auth.token.email
