@@ -174,6 +174,9 @@ function renderProductImages(images) {
 
 async function saveProduct(e) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn.disabled) return; // already saving — ignore double taps
+  btn.disabled = true;
   const data = {
     name: document.getElementById("pf-name").value.trim(),
     colorsNote: document.getElementById("pf-colors").value.trim(),
@@ -212,6 +215,7 @@ async function saveProduct(e) {
   } catch (err) {
     console.error(err);
     toast("Couldn't save: " + (err.message || err));
+    btn.disabled = false;
   }
 }
 
@@ -288,6 +292,9 @@ function showDealForm(d) {
 
 async function saveDeal(e) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn.disabled) return;
+  btn.disabled = true;
   const data = {
     title: document.getElementById("df-title").value.trim(),
     productId: document.getElementById("df-product").value,
@@ -307,6 +314,7 @@ async function saveDeal(e) {
   } catch (err) {
     console.error(err);
     toast("Couldn't save: " + (err.message || err));
+    btn.disabled = false;
   }
 }
 
@@ -367,6 +375,9 @@ function showPromoForm(c) {
 
 async function savePromo(e) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn.disabled) return;
+  btn.disabled = true;
   const code = document.getElementById("cf-code").value.trim().toUpperCase();
   const data = {
     type: document.getElementById("cf-type").value,
@@ -382,7 +393,7 @@ async function savePromo(e) {
       await updateDoc(doc(db, "promoCodes", editingPromoCode), data);
     } else {
       const existing = await getDoc(doc(db, "promoCodes", code));
-      if (existing.exists()) { toast("That code already exists."); return; }
+      if (existing.exists()) { toast("That code already exists."); btn.disabled = false; return; }
       await setDoc(doc(db, "promoCodes", code), { ...data, usedCount: 0, createdAt: serverTimestamp() });
     }
     document.getElementById("promo-form").hidden = true;
@@ -391,6 +402,7 @@ async function savePromo(e) {
   } catch (err) {
     console.error(err);
     toast("Couldn't save: " + (err.message || err));
+    btn.disabled = false;
   }
 }
 
