@@ -15,6 +15,15 @@ export const SCHOOL_DOMAIN = "intermetro.edu";
 
 export const CURRENCY = "$";
 
+// Web Push (FCM) public VAPID key — generated in the Firebase console under
+// Project settings → Cloud Messaging → Web Push certificates. Filled in
+// after the NextPrints project migration.
+export const VAPID_KEY = "__FIREBASE_VAPID_KEY__";
+
+// Rewards program: this many non-cancelled orders in a calendar month earns
+// VIP status (deal alerts go out to VIPs first + price-drop codes).
+export const VIP_ORDER_THRESHOLD = 10;
+
 // Maintenance mode: when true, every storefront page shows a maintenance
 // notice instead of the shop. The admin console (nxp-ops-7q2.html) is
 // exempt. Flip back to false when the maintenance window ends.

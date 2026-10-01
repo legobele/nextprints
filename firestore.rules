@@ -123,6 +123,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Push-notification device tokens. Only the Cloud Functions touch these
+    // (Admin SDK bypasses rules); clients register via registerFcmToken.
+    match /fcmTokens/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // Default deny.
     match /{document=**} {
       allow read, write: if false;

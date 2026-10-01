@@ -12,7 +12,9 @@
     "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
     "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
-    "firebase/storage": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js"
+    "firebase/storage": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js",
+    "firebase/messaging": "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js",
+    "firebase/functions": "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js"
   }
 }
 </script>
@@ -29,6 +31,7 @@
       <button class="tab" data-tab="deals">Deals</button>
       <button class="tab" data-tab="promos">Promo codes</button>
       <button class="tab" data-tab="orders">Orders</button>
+      <button class="tab" data-tab="blasts">Blasts</button>
     </div>
 
     <!-- PRODUCTS -->
@@ -149,6 +152,25 @@
         <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Grade</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
         <tbody id="ord-rows"></tbody>
       </table></div>
+    </section>
+
+    <!-- BLASTS -->
+    <section id="tab-blasts" class="tabpane">
+      <p class="muted">Send a push notification to deal-alert subscribers. VIPs (10+ orders this month) get the early alert; send to them first, then everyone.</p>
+      <form class="admin-form" id="blast-form">
+        <label>Title<input id="bf-title" maxlength="60" placeholder="e.g. Midnight drop is live" required></label>
+        <label>Message<textarea id="bf-body" maxlength="180" rows="3" placeholder="e.g. 20% off all black shifters until Friday" required></textarea></label>
+        <label>Audience
+          <select id="bf-audience">
+            <option value="vip">VIPs only (early alert)</option>
+            <option value="all">Everyone subscribed</option>
+          </select>
+        </label>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="submit" class="btn small" id="blast-send">Send blast</button>
+        </div>
+        <p class="muted" id="blast-status"></p>
+      </form>
     </section>
   </div>
 </main>

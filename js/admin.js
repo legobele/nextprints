@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, storage } from "./firebase.js";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, rescheduleWindow, rolloverOrders, windowEndFor, priorityDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
@@ -77,6 +78,7 @@ onAuthStateChanged(auth, async (user) => {
     wireDeals();
     wirePromos();
     wireOrders();
+    wireBlasts();
     document.getElementById("seed-btn").addEventListener("click", onSeed);
   }
   await refreshAll();
@@ -691,6 +693,35 @@ function startQueueTicker() {
 
 function wireOrders() {
   document.getElementById("ord-filter").addEventListener("change", renderOrders);
+}
+
+// Deal-alert blasts (FCM push). Audience "vip" hits the deals-vip topic
+// (10+ orders this month); "all" hits every subscriber.
+function wireBlasts() {
+  const form = document.getElementById("blast-form");
+  const status = document.getElementById("blast-status");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("bf-title").value.trim();
+    const body = document.getElementById("bf-body").value.trim();
+    const audience = document.getElementById("bf-audience").value;
+    if (!title || !body) return;
+    const btn = document.getElementById("blast-send");
+    btn.disabled = true;
+    status.textContent = "Sending…";
+    try {
+      const res = await httpsCallable(getFunctions(), "sendBlast")({ title, body, audience });
+      status.textContent = `Sent to ${res.data.topic === "deals-vip" ? "VIPs" : "all subscribers"}.`;
+      form.reset();
+      toast("Blast sent.");
+    } catch (err) {
+      console.error("blast failed", err);
+      status.textContent = "Couldn't send — try again in a bit.";
+      toast("Couldn't send the blast.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 async function refreshOrders() {

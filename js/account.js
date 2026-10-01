@@ -7,10 +7,11 @@ import {
   sendEmailVerification,
   signOut,
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
-import { BRAND_NAME, SCHOOL_DOMAIN, ADMIN_EMAIL } from "./config.js";
+import { BRAND_NAME, SCHOOL_DOMAIN, ADMIN_EMAIL, VIP_ORDER_THRESHOLD } from "./config.js";
 import { renderNav, escapeHtml, toast } from "./ui.js";
+import { pushPermissionState, enablePush } from "./messaging.js";
 
 renderNav("account");
 document.title = `Account · ${BRAND_NAME}`;
@@ -110,6 +111,12 @@ function loggedInHTML(user) {
         <a class="btn small ghost" href="orders.html">My orders</a>
         <button class="btn small ghost" id="logout">Log out</button>
       </div>
+    </div>
+    <div class="auth-card" style="margin-top:12px;text-align:left">
+      <h3 style="margin:0 0 8px">Deal alerts</h3>
+      <p class="muted" id="vip-line">Checking your VIP status…</p>
+      <p class="muted" id="push-line">Checking notification status…</p>
+      <button class="btn small" id="push-enable" hidden>Enable deal alerts</button>
     </div>`;
 }
 
@@ -145,4 +152,66 @@ onAuthStateChanged(auth, (user) => {
     } catch (e) { console.error(e); }
   });
   document.getElementById("logout").addEventListener("click", () => signOut(auth));
+  wirePushControls(user);
 });
+
+// Deal alerts + VIP progress on the account page.
+async function wirePushControls(user) {
+  const vipLine = document.getElementById("vip-line");
+  try {
+    const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", user.uid)));
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    let count = 0;
+    snap.forEach((d) => {
+      const o = d.data();
+      if (o.status === "cancelled") return;
+      const t = o.createdAt && typeof o.createdAt.toMillis === "function" ? o.createdAt.toMillis() : 0;
+      if (t >= start.getTime()) count++;
+    });
+    vipLine.innerHTML = count >= VIP_ORDER_THRESHOLD
+      ? `<span class="status-pill delivered">VIP</span> — you get deal alerts before everyone else.`
+      : `${count}/${VIP_ORDER_THRESHOLD} orders this month — reach ${VIP_ORDER_THRESHOLD} to unlock VIP early alerts.`;
+  } catch (e) {
+    console.error(e);
+    vipLine.textContent = "";
+  }
+
+  const pushLine = document.getElementById("push-line");
+  const btn = document.getElementById("push-enable");
+  let state = "unsupported";
+  try { state = await pushPermissionState(); } catch (e) { console.error(e); }
+  if (state === "unsupported") {
+    pushLine.textContent = "Push notifications aren't supported in this browser.";
+    return;
+  }
+  if (state === "granted") {
+    pushLine.textContent = "Deal alerts are on for this device.";
+    return;
+  }
+  if (state === "denied") {
+    pushLine.textContent = "Notifications are blocked — allow them in your browser settings to get deal alerts.";
+    return;
+  }
+  pushLine.textContent = "Get a notification for drops and price cuts.";
+  btn.hidden = false;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const res = await enablePush();
+      if (res.permission === "granted") {
+        pushLine.textContent = "Deal alerts are on for this device.";
+        btn.hidden = true;
+        toast(res.vip ? "Alerts on — and you're VIP, so you hear about drops first." : "Deal alerts on.");
+      } else {
+        pushLine.textContent = "Notifications are blocked — allow them in your browser settings to get deal alerts.";
+        btn.hidden = true;
+      }
+    } catch (e) {
+      console.error(e);
+      toast("Couldn't enable alerts — try again in a bit.");
+      btn.disabled = false;
+    }
+  });
+}

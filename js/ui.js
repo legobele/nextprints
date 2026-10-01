@@ -5,6 +5,7 @@ import { auth, FIREBASE_CONFIGURED } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL, CURRENCY, FIRST_DELIVERY_DATE, MAINTENANCE_MODE } from "./config.js";
 import { cartCount } from "./store.js";
 import { maybePromptReview } from "./reviews.js";
+import { setupPush } from "./messaging.js";
 
 // Maintenance gate: when MAINTENANCE_MODE is on, every storefront page
 // becomes a maintenance notice. The admin console is exempt so the shop
@@ -22,6 +23,9 @@ if (MAINTENANCE_MODE && !location.pathname.includes("nxp-ops-7q2")) {
     </div>`;
   throw new Error("maintenance mode: storefront disabled");
 }
+
+// Deal-alert push notifications (no-op where unsupported / not opted in).
+setupPush().catch((e) => console.error("push setup failed", e));
 import { maybePromptPickup } from "./pickup.js";
 
 export function escapeHtml(s) {
