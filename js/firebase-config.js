@@ -1,21 +1,16 @@
 // ============================================================
-//  FIREBASE CONFIG — ★ PASTE YOUR VALUES HERE (one-time setup) ★
+//  FIREBASE CONFIG — live values for "Fidget Shop"
+//  (project fidget-shop-227c7, created 2026-09-30)
 //
-//  1. Go to https://console.firebase.google.com → your project
-//  2. Project settings (gear icon) → "Your apps" → Web app (</>)
-//  3. Copy the values from the firebaseConfig object shown there
-//     and paste them below, replacing each PASTE_* placeholder.
-//  4. Save this file and redeploy / refresh. Done.
-//
-//  Nothing else in the codebase needs your keys — every page
-//  imports them from this single file.
+//  Every page imports from this single file — nothing else
+//  in the codebase needs these keys.
 // ============================================================
 
 export const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_AUTH_DOMAIN",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_STORAGE_BUCKET",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID",
+  apiKey: "AIzaSyAZPP_SmHgcDUR-xRjGx8jcMqk-xsiT5S8",
+  authDomain: "fidget-shop-227c7.firebaseapp.com",
+  projectId: "fidget-shop-227c7",
+  storageBucket: "fidget-shop-227c7.firebasestorage.app",
+  messagingSenderId: "607185866751",
+  appId: "1:607185866751:web:20fe3ed931014c465b61ca",
 };

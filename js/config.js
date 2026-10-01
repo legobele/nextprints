@@ -3,7 +3,7 @@
 // ============================================================
 
 // Displayed in the nav, hero, page titles, etc.
-export const BRAND_NAME = "Fidget Lab";
+export const BRAND_NAME = "NextPrints";
 
 // The one account allowed into admin.html. MUST match the email
 // hardcoded in firestore.rules and storage.rules.
