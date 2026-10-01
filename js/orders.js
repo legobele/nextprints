@@ -171,7 +171,7 @@ onAuthStateChanged(auth, async (user) => {
           <span class="status-pill ${escapeHtml(canon)}">${escapeHtml(statusLabel(o))}</span>
         </div>
         <p style="color:var(--muted);font-size:0.88rem;margin:6px 0">
-          ${fmtDate(o.createdAt)} · ${escapeHtml(o.name || "")} · ${escapeHtml(o.homeroom || "")}${o.grade ? ` · Grade ${escapeHtml(o.grade)}` : ""}
+          ${fmtDate(o.createdAt)} · ${escapeHtml(o.name || "")}${o.grade ? ` · Grade ${escapeHtml(o.grade)}` : ""}
         </p>
         ${trackerHTML(o)}
         <p style="font-size:0.92rem">${escapeHtml(statusHint(o))}</p>

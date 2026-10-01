@@ -64,7 +64,11 @@
         </div>
         <label style="margin-top:10px">Images</label>
         <div class="img-list" id="pf-images"></div>
-        <input type="file" id="pf-file" accept="image/*">
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input id="pf-imgurl" placeholder="https://… or images/photo.jpg" style="flex:1">
+          <button type="button" class="btn small ghost" id="pf-imgadd">Add</button>
+        </div>
+        <p style="color:var(--muted);font-size:0.85rem;margin:4px 0 0">Send product photos to Lux — they'll be added to the shop's <code class="inline">images/</code> folder, then paste the path here (e.g. <code class="inline">images/shifter-black.jpg</code>).</p>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button type="submit" class="btn small">Save product</button>
           <button type="button" class="btn small ghost" id="prod-cancel">Cancel</button>

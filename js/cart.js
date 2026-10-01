@@ -96,7 +96,6 @@ function render() {
     <div id="verify-notice"></div>
     <div id="grade-notice"></div>
     <label>Your name<input id="f-name" placeholder="e.g. Alex Rivera" autocomplete="name"></label>
-    <label>Homeroom<input id="f-homeroom" placeholder="e.g. 10-3"></label>
     ${knownGrade === null ? `
     <label>What grade are you in?
       <select id="f-grade">
@@ -194,10 +193,11 @@ async function placeOrder() {
     location.href = "account.html";
     return;
   }
+  // Force-refresh the ID token: Firestore rules read email_verified from the
+  // token, which stays stale for up to an hour after verification otherwise.
+  try { await user.getIdToken(true); } catch (e) { console.warn(e); }
   const name = document.getElementById("f-name").value.trim();
-  const homeroom = document.getElementById("f-homeroom").value.trim();
   if (!name) { toast("Please enter your name."); return; }
-  if (!homeroom) { toast("Please enter your homeroom."); return; }
   if (!lines.length) { toast("Your cart is empty."); return; }
 
   // Grade gate: reuse the grade from a previous order when we have one;
@@ -243,7 +243,6 @@ async function placeOrder() {
         userId: user.uid,
         email: user.email,
         name,
-        homeroom,
         grade,
         items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, variantLabel: l.variantLabel || "", description: l.description })),
         subtotal,

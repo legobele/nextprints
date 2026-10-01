@@ -6,8 +6,7 @@ import {
   collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
   arrayUnion, serverTimestamp,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { auth, db, storage } from "./firebase.js";
+import { auth, db } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
@@ -94,6 +93,7 @@ async function refreshAll() {
 /* ---------- products ---------- */
 
 let editingProductId = null;
+let editingImages = [];
 
 function wireProducts() {
   document.getElementById("prod-new").addEventListener("click", () => showProductForm(null));
@@ -105,6 +105,13 @@ function wireProducts() {
     syncVariantInputs();
     editingVariants.push({ name: "", options: [{ label: "", priceDelta: "" }] });
     renderVariantEditor();
+  });
+  document.getElementById("pf-imgadd").addEventListener("click", () => {
+    const v = document.getElementById("pf-imgurl").value.trim();
+    if (!v) return;
+    editingImages.push(v);
+    document.getElementById("pf-imgurl").value = "";
+    renderProductImages();
   });
 }
 
@@ -235,8 +242,9 @@ function showProductForm(p) {
   document.getElementById("pf-prestart").value = dateToDtLocal(p?.preorderStartAt);
   document.getElementById("pf-preend").value = dateToDtLocal(p?.preorderEndsAt);
   document.getElementById("pf-active").checked = p ? p.active !== false : true;
-  document.getElementById("pf-file").value = "";
-  renderProductImages(p?.images || []);
+  document.getElementById("pf-imgurl").value = "";
+  editingImages = [...(p?.images || [])];
+  renderProductImages();
   editingVariants = (Array.isArray(p?.variants) ? p.variants : []).map((d) => ({
     name: d.name || "",
     options: (Array.isArray(d.options) ? d.options : []).map((o) => ({
@@ -249,22 +257,17 @@ function showProductForm(p) {
   document.getElementById("prod-form").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function renderProductImages(images) {
+function renderProductImages() {
   const box = document.getElementById("pf-images");
-  box.innerHTML = images.map((src, i) => `
+  box.innerHTML = editingImages.map((src, i) => `
     <span class="img-thumb">
       <img src="${escapeHtml(src)}" alt="product image ${i + 1}">
       <button type="button" data-rmimg="${i}" title="Remove">×</button>
     </span>`).join("");
   box.querySelectorAll("[data-rmimg]").forEach((b) =>
-    b.addEventListener("click", async () => {
-      if (!editingProductId) return;
-      const cur = products.find((p) => p.id === editingProductId);
-      const next = (cur.images || []).filter((_, i) => i !== Number(b.dataset.rmimg));
-      await updateDoc(doc(db, "products", editingProductId), { images: next });
-      cur.images = next;
-      renderProductImages(next);
-      toast("Image removed");
+    b.addEventListener("click", () => {
+      editingImages.splice(Number(b.dataset.rmimg), 1);
+      renderProductImages();
     }));
 }
 
@@ -283,6 +286,7 @@ async function saveProduct(e) {
     preorderStartAt: dtLocalToDate(document.getElementById("pf-prestart").value),
     preorderEndsAt: dtLocalToDate(document.getElementById("pf-preend").value),
     active: document.getElementById("pf-active").checked,
+    images: [...editingImages],
     variants: collectVariants(),
     updatedAt: serverTimestamp(),
   };
@@ -293,18 +297,8 @@ async function saveProduct(e) {
     if (id) {
       await updateDoc(doc(db, "products", id), data);
     } else {
-      const r = await addDoc(collection(db, "products"), { ...data, images: [], createdAt: serverTimestamp() });
+      const r = await addDoc(collection(db, "products"), { ...data, createdAt: serverTimestamp() });
       id = r.id;
-    }
-    const file = document.getElementById("pf-file").files[0];
-    if (file) {
-      const r = ref(storage, `product-images/${id}/${Date.now()}_${file.name}`);
-      await uploadBytes(r, file);
-      const url = await getDownloadURL(r);
-      const cur = products.find((p) => p.id === id);
-      const images = [...(cur?.images || []), url];
-      await updateDoc(doc(db, "products", id), { images });
-      document.getElementById("pf-file").value = "";
     }
     document.getElementById("prod-form").hidden = true;
     toast("Product saved.");
@@ -555,7 +549,7 @@ function renderOrders() {
     <tr>
       <td><code class="inline">${escapeHtml(o.id.slice(0, 8))}…</code></td>
       <td>${fmtDate(o.createdAt)}</td>
-      <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
+      <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>
       <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.variantLabel ? ` <span style="color:var(--muted)">(${escapeHtml(i.variantLabel)})</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
