@@ -307,9 +307,13 @@ async function placeOrder() {
   } catch (err) {
     console.error(err);
     // Translate Firestore permission errors into something human.
-    const msg = /missing or insufficient permissions/i.test(String(err.message || err))
-      ? "We couldn't place your order due to a permissions issue. Try signing out and back in, then try again."
-      : (err.message || "Couldn't place the order. Try again.");
+    // Non-school emails get the real reason; everyone else gets the retry hint.
+    let msg = err.message || "Couldn't place the order. Try again.";
+    if (/missing or insufficient permissions/i.test(String(err.message || err))) {
+      msg = (user.email && !user.email.endsWith("@intermetro.edu"))
+        ? "Orders need a verified @intermetro.edu email — sign in with your school account."
+        : "We couldn't place your order due to a permissions issue. Try signing out and back in, then try again.";
+    }
     toast(msg);
     btn.disabled = false;
     btn.textContent = btnLabel; // restore the full original label
