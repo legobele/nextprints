@@ -107,7 +107,7 @@ export function priorityDeliveryWindow(o, orderList = []) {
 
 // Minutes before a window's end when its still-queued orders start rolling
 // to the next slot.
-export const ROLLOVER_LEAD_MIN = 5;
+export const ROLLOVER_LEAD_MIN = 3;
 
 // End of a delivery window as a Date (fixed windows use their real end;
 // custom times default to start + 60 min, matching the render).
