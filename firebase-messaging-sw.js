@@ -9,11 +9,11 @@ importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
 
 firebase.initializeApp({
-  apiKey: "__FIREBASE_API_KEY__",
-  authDomain: "__FIREBASE_PROJECT_ID__.firebaseapp.com",
-  projectId: "__FIREBASE_PROJECT_ID__",
-  messagingSenderId: "__FIREBASE_SENDER_ID__",
-  appId: "__FIREBASE_APP_ID__",
+  apiKey: "AIzaSyBsuZAuW_ncWkb4f9fwd0jQkhPs0NkPC38",
+  authDomain: "nextprints.firebaseapp.com",
+  projectId: "nextprints",
+  messagingSenderId: "1000408269543",
+  appId: "1:1000408269543:web:f6ced768359c8be7be9842",
 });
 
 const messaging = firebase.messaging();
