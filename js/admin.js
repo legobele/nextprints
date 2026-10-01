@@ -6,7 +6,8 @@ import {
   collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
   arrayUnion, serverTimestamp,
 } from "firebase/firestore";
-import { auth, db } from "./firebase.js";
+import { auth, db, storage } from "./firebase.js";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, rescheduleWindow, rolloverOrders, windowEndFor, priorityDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
@@ -134,6 +135,31 @@ function wireProducts() {
     editingImages.push(v);
     document.getElementById("pf-imgurl").value = "";
     renderProductImages();
+  });
+  document.getElementById("pf-imgfile").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const prog = document.getElementById("pf-imgprogress");
+    if (!f.type.startsWith("image/")) { toast("That file isn't an image."); return; }
+    if (f.size > 5 * 1024 * 1024) { toast("Image is over 5MB — shrink it first."); return; }
+    try {
+      const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "photo";
+      const r = ref(storage, `product-images/${Date.now()}-${safe}`);
+      const task = uploadBytesResumable(r, f, { contentType: f.type });
+      task.on("state_changed", (s) => {
+        prog.textContent = `Uploading… ${Math.round((s.bytesTransferred / s.totalBytes) * 100)}%`;
+      });
+      await task;
+      editingImages.push(await getDownloadURL(r));
+      renderProductImages();
+      prog.textContent = "";
+      toast("Image uploaded.");
+    } catch (err) {
+      console.error(err);
+      prog.textContent = "";
+      toast("Upload failed — Storage may not be enabled yet, or sign in again.");
+    }
   });
 }
 

@@ -67,8 +67,11 @@
         <div style="display:flex;gap:8px;margin-top:6px">
           <input id="pf-imgurl" placeholder="https://… or images/photo.jpg" style="flex:1">
           <button type="button" class="btn small ghost" id="pf-imgadd">Add</button>
+          <label class="btn small ghost" for="pf-imgfile" style="cursor:pointer;align-content:center">Upload</label>
+          <input type="file" id="pf-imgfile" accept="image/*" hidden>
         </div>
-        <p style="color:var(--muted);font-size:0.85rem;margin:4px 0 0">Send product photos to Lux — they'll be added to the shop's <code class="inline">images/</code> folder, then paste the path here (e.g. <code class="inline">images/shifter-black.jpg</code>).</p>
+        <p id="pf-imgprogress" style="color:var(--muted);font-size:0.85rem;margin:4px 0 0;min-height:1.2em"></p>
+        <p style="color:var(--muted);font-size:0.85rem;margin:4px 0 0">Upload a photo (goes to the shop's Firebase Storage bucket) or paste an image URL / repo path (e.g. <code class="inline">images/shifter-black.jpg</code>).</p>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button type="submit" class="btn small">Save product</button>
           <button type="button" class="btn small ghost" id="prod-cancel">Cancel</button>
