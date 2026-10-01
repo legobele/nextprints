@@ -57,7 +57,12 @@
           <div><label>Preorder ends<input id="pf-preend" type="datetime-local"></label></div>
         </div>
         <label><input type="checkbox" id="pf-active" checked> Active (visible in shop)</label>
-        <label>Images</label>
+        <div style="margin-top:10px">
+          <label style="font-weight:600">Variants (optional)</label>
+          <div id="pf-variants"></div>
+          <button type="button" class="btn small ghost" id="pf-add-dim" style="margin-top:6px">+ Add dimension</button>
+        </div>
+        <label style="margin-top:10px">Images</label>
         <div class="img-list" id="pf-images"></div>
         <input type="file" id="pf-file" accept="image/*">
         <div style="display:flex;gap:8px;margin-top:10px">

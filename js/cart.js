@@ -13,7 +13,7 @@ document.title = `Cart · ${BRAND_NAME}`;
 const GRADES = ["6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
 let appliedPromo = null; // { code, type, value }
-let lines = []; // resolved cart lines: { productId, qty, name, image, unitPrice, isPreorder, leadTimeDays }
+let lines = []; // resolved cart lines: { productId, variantKey, variantLabel, qty, name, image, unitPrice, isPreorder, leadTimeDays }
 let knownGrade = null; // grade remembered from the customer's most recent order
 let gradeChecked = false;
 
@@ -32,9 +32,14 @@ async function loadLines() {
     if (!p) continue; // product removed — skip silently
     const { price, isPreorder } = getActivePrice(p);
     lines.push({
-      productId: p.id, qty: l.qty, name: p.name,
+      productId: p.id, qty: l.qty,
+      variantKey: l.variantKey || "",
+      variantLabel: l.variantLabel || "",
+      name: p.name,
       image: (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320)),
-      unitPrice: price, isPreorder,
+      // Base price is re-resolved live (preorder windows change);
+      // the variant delta snapshot adjusts it.
+      unitPrice: round2(price + (Number(l.priceDelta) || 0)), isPreorder,
       leadTimeDays: p.leadTimeDays ?? null,
       // Snapshotted so old orders keep the original description.
       description: p.description || "",
@@ -56,18 +61,19 @@ function render() {
 
   view.hidden = false;
   view.innerHTML = `
-    ${lines.map((l) => `
+    ${lines.map((l, idx) => `
       <div class="cart-line">
         <img src="${escapeHtml(l.image)}" alt="${escapeHtml(l.name)}">
         <div class="info">
           <h4>${escapeHtml(l.name)}</h4>
+          ${l.variantLabel ? `<div style="color:var(--muted);font-size:0.85rem">${escapeHtml(l.variantLabel)}</div>` : ""}
           <div>${l.isPreorder ? `<span class="badge preorder">pre-order</span> ` : ""}${fmtMoney(l.unitPrice)} each</div>
           ${fmtEstimatedDelivery(l.leadTimeDays) ? `<div class="delivery-note">Estimated delivery: <strong>${escapeHtml(fmtEstimatedDelivery(l.leadTimeDays))}</strong></div>` : ""}
         </div>
         <div class="qty-stepper" style="margin:0">
-          <button data-dec="${l.productId}" aria-label="decrease">−</button>
+          <button data-dec="${idx}" aria-label="decrease">−</button>
           <span>${l.qty}</span>
-          <button data-inc="${l.productId}" aria-label="increase">+</button>
+          <button data-inc="${idx}" aria-label="increase">+</button>
         </div>
       </div>`).join("")}
 
@@ -102,14 +108,15 @@ function render() {
     <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12 only.</p>
   `;
 
-  // qty buttons
+  // qty buttons (keyed by line index — the same product can appear
+  // multiple times with different variants)
   view.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", async () => {
-    const l = lines.find((x) => x.productId === b.dataset.dec);
-    setQty(l.productId, l.qty - 1); updateCartBadge(); await reload();
+    const l = lines[Number(b.dataset.dec)];
+    setQty(l.productId, l.qty - 1, l.variantKey); updateCartBadge(); await reload();
   }));
   view.querySelectorAll("[data-inc]").forEach((b) => b.addEventListener("click", async () => {
-    const l = lines.find((x) => x.productId === b.dataset.inc);
-    setQty(l.productId, l.qty + 1); updateCartBadge(); await reload();
+    const l = lines[Number(b.dataset.inc)];
+    setQty(l.productId, l.qty + 1, l.variantKey); updateCartBadge(); await reload();
   }));
 
   const applyBtn = document.getElementById("promo-apply");
@@ -238,7 +245,7 @@ async function placeOrder() {
         name,
         homeroom,
         grade,
-        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, description: l.description })),
+        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, variantLabel: l.variantLabel || "", description: l.description })),
         subtotal,
         discount,
         total,

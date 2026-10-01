@@ -2,7 +2,7 @@
 
 import { BRAND_NAME } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
-import { fetchProduct, getActivePrice, addToCart } from "./store.js";
+import { fetchProduct, getActivePrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, deltaSuffix, round2 } from "./store.js";
 import { ratingLineHTML } from "./reviews.js";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -37,6 +37,7 @@ async function main() {
   const now = new Date();
   const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
   const images = (p.images && p.images.length ? p.images : [placeholderSVG(p.name, 270, 320)]);
+  const variants = sanitizeVariants(p.variants);
 
   let tierHTML;
   if (isPreorder) {
@@ -85,6 +86,16 @@ async function main() {
         ${ratingLineHTML(reviews, p.id)}
         ${p.colorsNote ? `<p style="color:var(--muted)">${escapeHtml(p.colorsNote)}</p>` : ""}
         ${tierHTML}
+        ${variants.length ? `
+        <div class="variant-block">
+          ${variants.map((d, i) => `
+            <label>${escapeHtml(d.name)}
+              <select data-variant="${i}">
+                ${d.options.map((o, j) => `<option value="${j}">${escapeHtml(o.label)}${escapeHtml(deltaSuffix(o.priceDelta))}</option>`).join("")}
+              </select>
+            </label>`).join("")}
+          <p class="variant-summary" id="variant-summary"></p>
+        </div>` : ""}
         <p>${escapeHtml(p.description || "")}</p>
         ${specHTML}
         <div class="qty-stepper">
@@ -106,18 +117,43 @@ async function main() {
     });
   });
 
-  // Quantity stepper
+  // Quantity stepper + variant-aware pricing.
+  // First option of each dimension is preselected, so add-to-cart always works.
   let qty = 1;
+  const selections = variants.map(() => 0);
+  const unitPrice = () => round2(price + variantDelta(variants, selections));
   const qtyVal = document.getElementById("qty-val");
   const addTotal = document.getElementById("add-total");
-  const sync = () => { qtyVal.textContent = qty; addTotal.textContent = fmtMoney(price * qty); };
+  const variantSummary = document.getElementById("variant-summary");
+  const sync = () => {
+    qtyVal.textContent = qty;
+    addTotal.textContent = fmtMoney(unitPrice() * qty);
+    if (variantSummary) {
+      variantSummary.innerHTML =
+        `<strong>${escapeHtml(variantLabel(variants, selections))}</strong> — ${fmtMoney(unitPrice())} each`;
+    }
+  };
   document.getElementById("qty-minus").addEventListener("click", () => { if (qty > 1) { qty--; sync(); } });
   document.getElementById("qty-plus").addEventListener("click", () => { if (qty < 99) { qty++; sync(); } });
 
+  // Variant dropdowns live-update the price.
+  app.querySelectorAll("[data-variant]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      selections[Number(sel.dataset.variant)] = Number(sel.value) || 0;
+      sync();
+    });
+  });
+  sync();
+
   document.getElementById("add-btn").addEventListener("click", () => {
-    addToCart(p.id, qty);
+    const v = variants.length ? {
+      key: variantKey(variants, selections),
+      label: variantLabel(variants, selections),
+      delta: variantDelta(variants, selections),
+    } : null;
+    addToCart(p.id, qty, v);
     updateCartBadge();
-    toast(`Added ${qty} × ${p.name} to cart`);
+    toast(`Added ${qty} × ${p.name}${v ? ` (${v.label})` : ""} to cart`);
   });
 
   startCountdowns();

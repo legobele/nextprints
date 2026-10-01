@@ -106,6 +106,7 @@ function itemHTML(i) {
   return `
     <div class="tracker-item">
       <div><strong>${i.qty} × ${escapeHtml(i.name)}</strong></div>
+      ${i.variantLabel ? `<div style="color:var(--muted);font-size:0.85rem">${escapeHtml(i.variantLabel)}</div>` : ""}
       ${i.description ? `<p class="desc clamp-2">${escapeHtml(trunc(i.description))}</p>` : ""}
     </div>`;
 }

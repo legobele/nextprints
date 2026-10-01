@@ -101,6 +101,11 @@ function wireProducts() {
     document.getElementById("prod-form").hidden = true;
   });
   document.getElementById("prod-form").addEventListener("submit", saveProduct);
+  document.getElementById("pf-add-dim").addEventListener("click", () => {
+    syncVariantInputs();
+    editingVariants.push({ name: "", options: [{ label: "", priceDelta: "" }] });
+    renderVariantEditor();
+  });
 }
 
 async function refreshProducts() {
@@ -135,6 +140,89 @@ async function refreshProducts() {
     }));
 }
 
+/* ---------- variant editor ---------- */
+
+// Working copy of the variant dimensions while the product form is open:
+// [{ name, options: [{ label, priceDelta }] }]. priceDelta is kept as the
+// raw input string until save (blank = 0).
+let editingVariants = [];
+
+// Push current DOM input values back into editingVariants.
+function syncVariantInputs() {
+  document.querySelectorAll("#pf-variants [data-dim]").forEach((dimEl) => {
+    const i = Number(dimEl.dataset.dim);
+    if (!editingVariants[i]) return;
+    editingVariants[i].name = dimEl.querySelector("[data-dim-name]").value;
+    dimEl.querySelectorAll("[data-opt]").forEach((optEl) => {
+      const j = Number(optEl.dataset.opt);
+      if (!editingVariants[i].options[j]) return;
+      editingVariants[i].options[j].label = optEl.querySelector("[data-opt-label]").value;
+      editingVariants[i].options[j].priceDelta = optEl.querySelector("[data-opt-delta]").value;
+    });
+  });
+}
+
+function renderVariantEditor() {
+  const box = document.getElementById("pf-variants");
+  if (!editingVariants.length) {
+    box.innerHTML = `<p style="color:var(--muted);font-size:0.9rem;margin:4px 0">No variants — the product sells as a single version.</p>`;
+    return;
+  }
+  box.innerHTML = editingVariants.map((d, i) => `
+    <div class="variant-dim" data-dim="${i}">
+      <div class="form-grid two" style="align-items:end">
+        <div><label>Dimension name<input data-dim-name value="${escapeHtml(d.name || "")}" placeholder="e.g. Color"></label></div>
+        <div style="text-align:right"><button type="button" class="btn small ghost" data-dim-rm>Remove dimension</button></div>
+      </div>
+      ${d.options.map((o, j) => `
+        <div class="form-grid" style="grid-template-columns:1fr 140px 44px;gap:8px;align-items:end;margin-top:6px" data-opt="${j}">
+          <div><label>Option<input data-opt-label value="${escapeHtml(o.label || "")}" placeholder="e.g. Red"></label></div>
+          <div><label>Price +/− $<input data-opt-delta type="number" step="0.01" value="${escapeHtml(String(o.priceDelta ?? ""))}" placeholder="0"></label></div>
+          <div><button type="button" class="btn small ghost" data-opt-rm title="Remove option">×</button></div>
+        </div>`).join("")}
+      <button type="button" class="btn small ghost" data-opt-add style="margin:8px 0 4px">+ Add option</button>
+    </div>`).join("");
+
+  box.querySelectorAll("[data-dim-name],[data-opt-label],[data-opt-delta]").forEach((inp) =>
+    inp.addEventListener("input", syncVariantInputs));
+  box.querySelectorAll("[data-dim-rm]").forEach((b) =>
+    b.addEventListener("click", () => {
+      syncVariantInputs();
+      editingVariants.splice(Number(b.closest("[data-dim]").dataset.dim), 1);
+      renderVariantEditor();
+    }));
+  box.querySelectorAll("[data-opt-add]").forEach((b) =>
+    b.addEventListener("click", () => {
+      syncVariantInputs();
+      editingVariants[Number(b.closest("[data-dim]").dataset.dim)].options.push({ label: "", priceDelta: "" });
+      renderVariantEditor();
+    }));
+  box.querySelectorAll("[data-opt-rm]").forEach((b) =>
+    b.addEventListener("click", () => {
+      syncVariantInputs();
+      const dimEl = b.closest("[data-dim]");
+      editingVariants[Number(dimEl.dataset.dim)].options.splice(Number(b.closest("[data-opt]").dataset.opt), 1);
+      renderVariantEditor();
+    }));
+}
+
+// Normalized variants array for the product doc (blank delta = 0,
+// dimensions/options without names are dropped).
+function collectVariants() {
+  syncVariantInputs();
+  return editingVariants
+    .map((d) => ({
+      name: String(d.name || "").trim(),
+      options: (d.options || [])
+        .map((o) => ({
+          label: String(o.label || "").trim(),
+          priceDelta: o.priceDelta === "" || o.priceDelta == null ? 0 : Number(o.priceDelta) || 0,
+        }))
+        .filter((o) => o.label),
+    }))
+    .filter((d) => d.name && d.options.length);
+}
+
 function showProductForm(p) {
   editingProductId = p ? p.id : null;
   document.getElementById("prod-form-title").textContent = p ? "Edit product" : "New product";
@@ -149,6 +237,14 @@ function showProductForm(p) {
   document.getElementById("pf-active").checked = p ? p.active !== false : true;
   document.getElementById("pf-file").value = "";
   renderProductImages(p?.images || []);
+  editingVariants = (Array.isArray(p?.variants) ? p.variants : []).map((d) => ({
+    name: d.name || "",
+    options: (Array.isArray(d.options) ? d.options : []).map((o) => ({
+      label: o.label || "",
+      priceDelta: o.priceDelta ?? "",
+    })),
+  }));
+  renderVariantEditor();
   document.getElementById("prod-form").hidden = false;
   document.getElementById("prod-form").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -187,9 +283,10 @@ async function saveProduct(e) {
     preorderStartAt: dtLocalToDate(document.getElementById("pf-prestart").value),
     preorderEndsAt: dtLocalToDate(document.getElementById("pf-preend").value),
     active: document.getElementById("pf-active").checked,
+    variants: collectVariants(),
     updatedAt: serverTimestamp(),
   };
-  if (!data.name || !(data.price >= 0)) { toast("Name and price are required."); return; }
+  if (!data.name || !(data.price >= 0)) { toast("Name and price are required."); btn.disabled = false; return; }
 
   let id = editingProductId;
   try {
@@ -460,7 +557,7 @@ function renderOrders() {
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>
-      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
+      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.variantLabel ? ` <span style="color:var(--muted)">(${escapeHtml(i.variantLabel)})</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
       <td>
         <select data-ostatus="${o.id}" style="margin:0;min-width:150px">

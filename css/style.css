@@ -297,3 +297,10 @@ code.inline { background: var(--bg-2); padding: 2px 8px; border-radius: 4px; fon
   color: #cbd5e1; padding: 0 2px; line-height: 1;
 }
 .stars button.lit { color: #d97706; }
+
+/* ---------- product variants ---------- */
+.variant-dim { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 8px 0; background: #fafbfc; }
+.variant-block { margin: 12px 0; }
+.variant-block label { display: block; margin: 8px 0; }
+.variant-block select { margin-top: 4px; }
+.variant-summary { margin: 8px 0 0; font-size: 0.95rem; }

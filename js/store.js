@@ -21,19 +21,27 @@ export function saveCart(cart) {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 
-export function addToCart(productId, qty = 1) {
+export function addToCart(productId, qty = 1, variant = null) {
   const cart = getCart();
-  const line = cart.find((l) => l.productId === productId);
+  const key = variant?.key || "";
+  const line = cart.find((l) => l.productId === productId && (l.variantKey || "") === key);
   if (line) line.qty = Math.min(99, line.qty + qty);
-  else cart.push({ productId, qty: Math.max(1, qty) });
+  else cart.push({
+    productId,
+    variantKey: key, // stable product+options key; "" = no variants (or pre-variant carts)
+    variantLabel: variant?.label || "", // human-readable, e.g. "Color: Red · Type: Mini"
+    priceDelta: variant?.delta || 0, // snapshot of selected options' total delta
+    qty: Math.max(1, qty),
+  });
   saveCart(cart);
 }
 
-export function setQty(productId, qty) {
+export function setQty(productId, qty, variantKey = "") {
   let cart = getCart();
-  if (qty <= 0) cart = cart.filter((l) => l.productId !== productId);
+  const match = (l) => l.productId === productId && (l.variantKey || "") === (variantKey || "");
+  if (qty <= 0) cart = cart.filter((l) => !match(l));
   else {
-    const line = cart.find((l) => l.productId === productId);
+    const line = cart.find(match);
     if (line) line.qty = Math.min(99, qty);
   }
   saveCart(cart);
@@ -71,6 +79,65 @@ export function getActivePrice(product, now = new Date()) {
 
 export function round2(n) {
   return Math.round(Number(n) * 100) / 100;
+}
+
+/* ---------------- variants ----------------
+   Product doc shape:
+   variants: [{ name: "Color", options: [{ label: "Black", priceDelta: 0 },
+                                          { label: "Red", priceDelta: 1.5 }] },
+              { name: "Type",  options: [{ label: "Standard", priceDelta: 0 },
+                                          { label: "Mini", priceDelta: -1 }] }]
+   selections: array of option indices, one per dimension (index 0 = first option). */
+
+// Normalize a variants array into [{ name, options: [{ label, priceDelta }] }],
+// dropping dimensions with no name/options and options with no label.
+export function sanitizeVariants(variants) {
+  if (!Array.isArray(variants)) return [];
+  return variants
+    .map((d) => ({
+      name: String(d?.name || "").trim(),
+      options: (Array.isArray(d?.options) ? d.options : [])
+        .map((o) => ({
+          label: String(o?.label || "").trim(),
+          priceDelta: Number(o?.priceDelta) || 0,
+        }))
+        .filter((o) => o.label),
+    }))
+    .filter((d) => d.name && d.options.length);
+}
+
+// Sum of the selected options' price deltas (can be negative).
+export function variantDelta(variants, selections) {
+  const vs = sanitizeVariants(variants);
+  return round2(vs.reduce((sum, d, i) => {
+    const opt = d.options[selections?.[i] ?? 0] || d.options[0];
+    return sum + (opt ? opt.priceDelta : 0);
+  }, 0));
+}
+
+// "Color: Red · Type: Mini" — empty string when there are no variants.
+export function variantLabel(variants, selections) {
+  return sanitizeVariants(variants)
+    .map((d, i) => {
+      const opt = d.options[selections?.[i] ?? 0] || d.options[0];
+      return opt ? `${d.name}: ${opt.label}` : null;
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// Stable key so the same product+option combination merges into one cart line.
+export function variantKey(variants, selections) {
+  const vs = sanitizeVariants(variants);
+  if (!vs.length) return "";
+  return vs.map((d, i) => `${i}:${selections?.[i] ?? 0}`).join("|");
+}
+
+// " (+$1.50)" / " (−$1.00)" / "" — suffix for option dropdown labels.
+export function deltaSuffix(delta) {
+  const n = Number(delta) || 0;
+  if (n === 0) return "";
+  return n > 0 ? ` (+$${n.toFixed(2)})` : ` (−$${Math.abs(n).toFixed(2)})`;
 }
 
 /* ---------------- reads ---------------- */
