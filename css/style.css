@@ -161,6 +161,8 @@ input[type="file"] { padding: 8px; }
 /* Delivery queue: ready/delivering orders grouped by window, above the table. */
 .queue { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0 18px; background: var(--bg-2); }
 .queue h3 { margin: 0 0 10px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+.queue-lane { margin: 10px 0 4px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 700; }
+.queue-lane:first-of-type { margin-top: 0; }
 .queue-slot { border-top: 1px solid var(--line); padding: 8px 0; }
 .queue-slot:first-of-type { border-top: none; }
 .queue-slot ul { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; }

@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL } from "./config.js";
-import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, firstWindowNextDay, windowEndFor, priorityDeliveryWindow } from "./ui.js";
+import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, toast, canonStatus, statusLabel, fmtBatch, fmtDeliveryWindow, fmtETA, nextDeliveryWindow, rescheduleWindow, windowEndFor, priorityDeliveryWindow } from "./ui.js";
 import { seedProducts } from "../seed/seed-products.js";
 
 renderNav("admin");
@@ -580,7 +580,7 @@ function statusMetaHTML(o) {
     bits.push(`Reprinted on ${escapeHtml(fmtBatch(last.batch))}`);
   }
   if (o.priority) {
-    const pw = priorityDeliveryWindow(o);
+    const pw = priorityDeliveryWindow(o, orders);
     if (pw && fmtDeliveryWindow(pw)) bits.push(`Earliest window ${escapeHtml(fmtDeliveryWindow(pw))} (priority)`);
   } else {
     const eta = fmtETA(o);
@@ -597,34 +597,40 @@ function statusMetaHTML(o) {
 }
 
 // Delivery queue: ready/delivering orders grouped by window, earliest first.
-function renderDeliveryQueue() {
-  const el = document.getElementById("delivery-queue");
-  if (!el) return;
-  const rows = orders.filter((o) => {
-    const s = canonStatus(o.status);
-    return (s === "ready_for_delivery" || s === "delivering") && o.deliveryWindow?.date;
-  });
-  if (!rows.length) { el.innerHTML = ""; return; }
+// Priority lane and regular lane shown separately — the division is invisible
+// to customers; only this panel shows both.
+function queueLaneHTML(list) {
   const windows = new Map();
-  for (const o of rows) {
+  for (const o of list) {
     const key = `${o.deliveryWindow.date}|${o.deliveryWindow.startTime}`;
     if (!windows.has(key)) windows.set(key, o.deliveryWindow);
   }
-  const keys = [...windows.keys()].sort();
+  return [...windows.keys()].sort().map((key) => {
+    const w = windows.get(key);
+    const os = list.filter((o) => `${o.deliveryWindow.date}|${o.deliveryWindow.startTime}` === key);
+    return `<div class="queue-slot">
+      <strong>${escapeHtml(fmtDeliveryWindow(w))}</strong>
+      <span class="muted">${os.length} order${os.length === 1 ? "" : "s"}</span>
+      <ul>${os.map((o) => `<li>${escapeHtml(o.items.map((i) => i.name).join(", "))} — ${escapeHtml(o.userEmail || "")}${canonStatus(o.status) === "delivering" ? ` (${escapeHtml(o.pickupLocation || "no pickup location yet")})` : ""}</li>`).join("")}</ul>
+    </div>`;
+  }).join("");
+}
+
+function renderDeliveryQueue() {
+  const el = document.getElementById("delivery-queue");
+  if (!el) return;
+  const queued = orders.filter((o) => {
+    const s = canonStatus(o.status);
+    return (s === "ready_for_delivery" || s === "delivering") && o.deliveryWindow?.date;
+  });
+  if (!queued.length) { el.innerHTML = ""; return; }
+  const prio = queued.filter((o) => o.priority);
+  const reg = queued.filter((o) => !o.priority);
   el.innerHTML = `
     <div class="queue">
       <h3>Delivery queue</h3>
-      ${keys.map((key) => {
-        const w = windows.get(key);
-        const os = rows
-          .filter((o) => `${o.deliveryWindow.date}|${o.deliveryWindow.startTime}` === key)
-          .sort((a, b) => (a.priority === b.priority ? 0 : a.priority ? -1 : 1));
-        return `<div class="queue-slot">
-          <strong>${escapeHtml(fmtDeliveryWindow(w))}</strong>
-          <span class="muted">${os.length} order${os.length === 1 ? "" : "s"}</span>
-          <ul>${os.map((o) => `<li>${o.priority ? '<span class="prio">PRIORITY</span> ' : ""}${escapeHtml(o.items.map((i) => i.name).join(", "))} — ${escapeHtml(o.userEmail || "")}${canonStatus(o.status) === "delivering" ? ` (${escapeHtml(o.pickupLocation || "no pickup location yet")})` : ""}</li>`).join("")}</ul>
-        </div>`;
-      }).join("")}
+      ${prio.length ? `<h4 class="queue-lane">Priority</h4>${queueLaneHTML(prio)}` : ""}
+      ${reg.length ? `<h4 class="queue-lane">Regular</h4>${queueLaneHTML(reg)}` : ""}
     </div>`;
 }
 
@@ -714,15 +720,15 @@ async function onEtaToggleChange(cb) {
   }
 }
 
-// Customer couldn't be found during delivery: back to the queue for the
-// next day's first window.
+// Customer couldn't be found during delivery: back to the middle of its
+// lane's line — not the front, not the back.
 async function onMissedDelivery(btn) {
   const id = btn.dataset.missed;
   const o = orders.find((x) => x.id === id);
   if (!o) return;
   if (btn.disabled) return;
   btn.disabled = true;
-  const w = firstWindowNextDay();
+  const w = rescheduleWindow(o, orders);
   const update = {
     status: "ready_for_delivery",
     deliveryWindow: w,

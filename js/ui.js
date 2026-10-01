@@ -88,29 +88,58 @@ export function nextDeliveryWindow(from = new Date()) {
   return null;
 }
 
-// First window of the next school day — used when a customer can't be found.
-// Never before the first delivery date.
-export function firstWindowNextDay(from = new Date()) {
-  const d = new Date(from);
-  d.setDate(d.getDate() + 1);
-  d.setHours(0, 0, 0, 0);
-  const fdd = firstDeliveryDate();
-  if (fdd && d < fdd) d.setTime(fdd.getTime());
-  for (let i = 0; i < 14 && !isSchoolDay(d); i++) d.setDate(d.getDate() + 1);
-  const w = DELIVERY_WINDOWS[0];
-  return { date: ymd(d), startTime: w.start, endTime: w.end };
-}
-
 // End time for a window start ("07:00" -> "07:40"); falls back to +60 min.
 export function windowEndFor(startTime) {
   const w = DELIVERY_WINDOWS.find((x) => x.start === startTime);
   return w ? w.end : null;
 }
 
-// Priority orders run their own ticker: the earliest slot in the delivery
-// queue — the assigned window once queued, otherwise the next upcoming one.
-export function priorityDeliveryWindow(o) {
+// Priority orders run their own ticker: the earliest slot in the priority
+// lane — the assigned window once queued, otherwise the earliest upcoming
+// window already held by a priority order, else the next upcoming window.
+// The lane division is invisible to customers; only admin sees both lanes.
+export function priorityDeliveryWindow(o, orderList = []) {
   if (o?.deliveryWindow?.date && o.deliveryWindow.startTime) return o.deliveryWindow;
+  const q = priorityQueueWindows(orderList);
+  if (q.length) return q[0];
+  return nextDeliveryWindow();
+}
+
+// Assigned windows of a delivery-queue lane, earliest first, skipping
+// windows that already ended. lane: true = priority only, false = regular
+// only, null = every order. The lane division is invisible to customers.
+export function queueWindows(orderList = [], lane = null) {
+  const now = new Date();
+  const seen = new Map();
+  for (const o of orderList || []) {
+    if (lane === true && !o?.priority) continue;
+    if (lane === false && o?.priority) continue;
+    const s = canonStatus(o.status);
+    if (s !== "ready_for_delivery" && s !== "delivering") continue;
+    const w = o.deliveryWindow;
+    if (!w?.date || !w.startTime) continue;
+    const end = windowEndFor(w.startTime);
+    const [eh, em] = String(end || "23:59").split(":").map(Number);
+    const endDt = new Date(w.date + "T12:00:00");
+    endDt.setHours(eh, em, 0, 0);
+    if (endDt <= now) continue;
+    const key = `${w.date}|${w.startTime}`;
+    if (!seen.has(key)) seen.set(key, { date: w.date, startTime: w.startTime, endTime: w.endTime || end });
+  }
+  return [...seen.keys()].sort().map((k) => seen.get(k));
+}
+
+// Assigned windows of the priority lane, earliest first.
+export function priorityQueueWindows(orderList = []) {
+  return queueWindows(orderList, true);
+}
+
+// Where a missed delivery goes: the middle of its own lane's line — not
+// the front, not the back. Falls back to the next upcoming window.
+export function rescheduleWindow(o, orderList = []) {
+  const others = (orderList || []).filter((x) => x?.id !== o?.id);
+  const wins = queueWindows(others, o?.priority ? true : false);
+  if (wins.length) return wins[Math.floor(wins.length / 2)];
   return nextDeliveryWindow();
 }
 

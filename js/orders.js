@@ -111,11 +111,11 @@ function statusHint(o) {
 // show the day-count estimate, floored at 2 days out (unless she toggled
 // the order to allow earlier). Not shown while delivering (the scheduled
 // window is shown instead).
-function etaLineHTML(o) {
+function etaLineHTML(o, orderList = []) {
   const status = canonStatus(o.status);
   if (status === "delivering" || status === "delivered" || status === "cancelled") return "";
   if (o.priority) {
-    const w = priorityDeliveryWindow(o);
+    const w = priorityDeliveryWindow(o, orderList);
     if (!w) return "";
     return `<p style="font-size:0.92rem;color:var(--muted)">Earliest delivery window: <strong style="color:var(--text)">${escapeHtml(fmtDeliveryWindow(w))}</strong></p>`;
   }
@@ -205,7 +205,7 @@ onAuthStateChanged(auth, async (user) => {
         </p>
         ${trackerHTML(o)}
         <p style="font-size:0.92rem">${escapeHtml(statusHint(o))}</p>
-        ${etaLineHTML(o)}
+        ${etaLineHTML(o, orders)}
         ${canon === "delivering" ? pickupRowHTML(o) : ""}
         <div>${(o.items || []).map(itemHTML).join("")}</div>
         <div class="totals" style="margin:10px 0 0">
