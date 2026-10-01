@@ -89,7 +89,7 @@ export function round2(n) {
                                           { label: "Mini", priceDelta: -1 }] }]
    selections: array of option indices, one per dimension (index 0 = first option). */
 
-// Normalize a variants array into [{ name, options: [{ label, priceDelta }] }],
+// Normalize a variants array into [{ name, options: [{ label, priceDelta, images }] }],
 // dropping dimensions with no name/options and options with no label.
 export function sanitizeVariants(variants) {
   if (!Array.isArray(variants)) return [];
@@ -100,6 +100,9 @@ export function sanitizeVariants(variants) {
         .map((o) => ({
           label: String(o?.label || "").trim(),
           priceDelta: Number(o?.priceDelta) || 0,
+          images: (Array.isArray(o?.images) ? o.images : [])
+            .map((s) => String(s || "").trim())
+            .filter(Boolean),
         }))
         .filter((o) => o.label),
     }))
@@ -131,6 +134,28 @@ export function variantKey(variants, selections) {
   const vs = sanitizeVariants(variants);
   if (!vs.length) return "";
   return vs.map((d, i) => `${i}:${selections?.[i] ?? 0}`).join("|");
+}
+
+// Parse a variantKey back into a selections array (["0:2","1:0"] -> [2, 0]).
+// Returns [] for empty/invalid keys.
+export function selectionsFromKey(variantKey) {
+  if (!variantKey) return [];
+  return String(variantKey).split("|").map((part) => {
+    const n = Number(part.split(":")[1]);
+    return Number.isInteger(n) && n >= 0 ? n : 0;
+  });
+}
+
+// Images for the current variant selection: the first dimension (in order)
+// whose selected option has its own images wins. Returns null when no
+// selected option carries images (caller falls back to product images).
+export function variantImages(variants, selections) {
+  const vs = sanitizeVariants(variants);
+  for (let i = 0; i < vs.length; i++) {
+    const opt = vs[i].options[selections?.[i] ?? 0] || vs[i].options[0];
+    if (opt && opt.images && opt.images.length) return opt.images;
+  }
+  return null;
 }
 
 // " (+$1.50)" / " (−$1.00)" / "" — suffix for option dropdown labels.

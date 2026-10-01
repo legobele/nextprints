@@ -2,7 +2,7 @@
 
 import { BRAND_NAME } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, isProductVisible, startCountdowns, fmtEstimatedDelivery, toast, placeholderSVG, updateCartBadge } from "./ui.js";
-import { fetchProduct, fetchDeals, chargedPrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, deltaSuffix, round2 } from "./store.js";
+import { fetchProduct, fetchDeals, chargedPrice, addToCart, sanitizeVariants, variantDelta, variantLabel, variantKey, variantImages, deltaSuffix, round2 } from "./store.js";
 import { ratingLineHTML } from "./reviews.js";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "./firebase.js";
@@ -42,8 +42,13 @@ async function main() {
   const now = new Date();
   const { price, deal, isPreorder, endsAt } = chargedPrice(p, deals, now);
   const dealEnd = deal ? toDate(deal.endsAt) : null;
-  const images = (p.images && p.images.length ? p.images : [placeholderSVG(p.name, 270, 320)]);
+  const productImages = (p.images && p.images.length ? p.images : [placeholderSVG(p.name, 270, 320)]);
   const variants = sanitizeVariants(p.variants);
+  // First option of each dimension is preselected, so add-to-cart always works.
+  const selections = variants.map(() => 0);
+  // Variant images win over product images: the first dimension (in order)
+  // whose selected option has its own photos drives the gallery.
+  const galleryImages = () => variantImages(variants, selections) || productImages;
 
   let tierHTML;
   if (deal) {
@@ -85,11 +90,7 @@ async function main() {
   app.innerHTML = `
     <p><a href="index.html">← Back to shop</a></p>
     <div class="product-detail">
-      <div class="gallery">
-        <img class="main" id="main-img" src="${escapeHtml(images[0])}" alt="${escapeHtml(p.name)}">
-        ${images.length > 1 ? `<div class="thumbs">${images.map((src, i) =>
-          `<img src="${escapeHtml(src)}" data-i="${i}" class="${i === 0 ? "sel" : ""}" alt="photo ${i + 1}">`).join("")}</div>` : ""}
-      </div>
+      <div class="gallery" id="gallery"></div>
       <div>
         ${isPreorder ? `<span class="badge preorder">Pre-order</span>` : ""}
         ${deal ? `<span class="badge deal">Limited deal</span>` : ""}
@@ -119,19 +120,27 @@ async function main() {
       </div>
     </div>`;
 
-  // Gallery thumbs
-  app.querySelectorAll(".thumbs img").forEach((t) => {
-    t.addEventListener("click", () => {
-      document.getElementById("main-img").src = images[Number(t.dataset.i)];
-      app.querySelectorAll(".thumbs img").forEach((x) => x.classList.remove("sel"));
-      t.classList.add("sel");
+  // Gallery: re-rendered whenever the variant selection changes so each
+  // option can show its own photos (falling back to product images).
+  function renderGallery() {
+    const imgs = galleryImages();
+    const g = document.getElementById("gallery");
+    g.innerHTML = `
+      <img class="main" id="main-img" src="${escapeHtml(imgs[0])}" alt="${escapeHtml(p.name)}">
+      ${imgs.length > 1 ? `<div class="thumbs">${imgs.map((src, i) =>
+        `<img src="${escapeHtml(src)}" data-i="${i}" class="${i === 0 ? "sel" : ""}" alt="photo ${i + 1}">`).join("")}</div>` : ""}`;
+    g.querySelectorAll(".thumbs img").forEach((t) => {
+      t.addEventListener("click", () => {
+        document.getElementById("main-img").src = imgs[Number(t.dataset.i)];
+        g.querySelectorAll(".thumbs img").forEach((x) => x.classList.remove("sel"));
+        t.classList.add("sel");
+      });
     });
-  });
+  }
+  renderGallery();
 
   // Quantity stepper + variant-aware pricing.
-  // First option of each dimension is preselected, so add-to-cart always works.
   let qty = 1;
-  const selections = variants.map(() => 0);
   const unitPrice = () => round2(price + variantDelta(variants, selections));
   const qtyVal = document.getElementById("qty-val");
   const addTotal = document.getElementById("add-total");
@@ -147,10 +156,12 @@ async function main() {
   document.getElementById("qty-minus").addEventListener("click", () => { if (qty > 1) { qty--; sync(); } });
   document.getElementById("qty-plus").addEventListener("click", () => { if (qty < 99) { qty++; sync(); } });
 
-  // Variant dropdowns live-update the price.
+  // Variant dropdowns live-update the price and swap the gallery to the
+  // selected option's photos (when it has its own).
   app.querySelectorAll("[data-variant]").forEach((sel) => {
     sel.addEventListener("change", () => {
       selections[Number(sel.dataset.variant)] = Number(sel.value) || 0;
+      renderGallery();
       sync();
     });
   });

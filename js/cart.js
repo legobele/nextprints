@@ -5,7 +5,7 @@ import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverT
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN, PRIORITY_FEE } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtEstimatedDelivery, toDate, toast, placeholderSVG, updateCartBadge, priorityOfferedFor } from "./ui.js";
-import { getCart, setQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2 } from "./store.js";
+import { getCart, setQty, clearCart, fetchProduct, fetchDeals, chargedPrice, round2, variantImages, selectionsFromKey } from "./store.js";
 
 renderNav("cart");
 document.title = `Cart · ${BRAND_NAME}`;
@@ -37,12 +37,16 @@ async function loadLines() {
     // the variant delta snapshot adjusts it. An active deal is the charged
     // price, matching what the shop advertises.
     const { price, isPreorder } = chargedPrice(p, deals);
+    // Cart thumbnail follows the variant: the selected option's own photos
+    // win, falling back to the product's first image.
+    const vImgs = variantImages(p.variants, selectionsFromKey(l.variantKey));
     lines.push({
       productId: p.id, qty: l.qty,
       variantKey: l.variantKey || "",
       variantLabel: l.variantLabel || "",
       name: p.name,
-      image: (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320)),
+      image: (vImgs && vImgs.length ? vImgs[0]
+        : (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320))),
       // Base price is re-resolved live (preorder windows change);
       // the variant delta snapshot adjusts it.
       unitPrice: round2(price + (Number(l.priceDelta) || 0)), isPreorder,

@@ -126,7 +126,7 @@ function wireProducts() {
   document.getElementById("prod-form").addEventListener("submit", saveProduct);
   document.getElementById("pf-add-dim").addEventListener("click", () => {
     syncVariantInputs();
-    editingVariants.push({ name: "", options: [{ label: "", priceDelta: "" }] });
+    editingVariants.push({ name: "", options: [{ label: "", priceDelta: "", images: [] }] });
     renderVariantEditor();
   });
   document.getElementById("pf-imgadd").addEventListener("click", () => {
@@ -141,26 +141,38 @@ function wireProducts() {
     e.target.value = "";
     if (!f) return;
     const prog = document.getElementById("pf-imgprogress");
-    if (!f.type.startsWith("image/")) { toast("That file isn't an image."); return; }
-    if (f.size > 5 * 1024 * 1024) { toast("Image is over 5MB — shrink it first."); return; }
     try {
-      const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "photo";
-      const r = ref(storage, `product-images/${Date.now()}-${safe}`);
-      const task = uploadBytesResumable(r, f, { contentType: f.type });
-      task.on("state_changed", (s) => {
-        prog.textContent = `Uploading… ${Math.round((s.bytesTransferred / s.totalBytes) * 100)}%`;
-      });
-      await task;
-      editingImages.push(await getDownloadURL(r));
+      const url = await uploadImageFile(f, (pct) => { prog.textContent = `Uploading… ${pct}%`; });
+      editingImages.push(url);
       renderProductImages();
       prog.textContent = "";
       toast("Image uploaded.");
     } catch (err) {
       console.error(err);
       prog.textContent = "";
-      toast("Upload failed — Storage may not be enabled yet, or sign in again.");
+      toast(err.message === "not-image" ? "That file isn't an image."
+        : err.message === "too-big" ? "Image is over 5MB — shrink it first."
+        : "Upload failed — Storage may not be enabled yet, or sign in again.");
     }
   });
+}
+
+// Upload one image file to Storage's product-images/ folder, reporting
+// progress via onProgress(percent). Resolves with the download URL.
+// Throws Error("not-image") / Error("too-big") for client-side rejects.
+function uploadImageFile(file, onProgress) {
+  return (async () => {
+    if (!file.type.startsWith("image/")) throw new Error("not-image");
+    if (file.size > 5 * 1024 * 1024) throw new Error("too-big");
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "photo";
+    const r = ref(storage, `product-images/${Date.now()}-${safe}`);
+    const task = uploadBytesResumable(r, file, { contentType: file.type });
+    task.on("state_changed", (s) => {
+      if (onProgress) onProgress(Math.round((s.bytesTransferred / s.totalBytes) * 100));
+    });
+    await task;
+    return getDownloadURL(r);
+  })();
 }
 
 async function refreshProducts() {
@@ -204,8 +216,8 @@ async function refreshProducts() {
 /* ---------- variant editor ---------- */
 
 // Working copy of the variant dimensions while the product form is open:
-// [{ name, options: [{ label, priceDelta }] }]. priceDelta is kept as the
-// raw input string until save (blank = 0).
+// [{ name, options: [{ label, priceDelta, images: [url...] }] }]. priceDelta
+// is kept as the raw input string until save (blank = 0).
 let editingVariants = [];
 
 // Push current DOM input values back into editingVariants.
@@ -240,8 +252,10 @@ function renderVariantEditor() {
           <div><label>Option<input data-opt-label value="${escapeHtml(o.label || "")}" placeholder="e.g. Red"></label></div>
           <div><label>Price +/− $<input data-opt-delta type="number" step="0.01" value="${escapeHtml(String(o.priceDelta ?? ""))}" placeholder="0"></label></div>
           <div><button type="button" class="btn small ghost" data-opt-rm title="Remove option">×</button></div>
-        </div>`).join("")}
+        </div>
+        <div data-optimgs="${i}:${j}" style="margin:2px 0 10px"></div>`).join("")}
       <button type="button" class="btn small ghost" data-opt-add style="margin:8px 0 4px">+ Add option</button>
+      <p style="color:var(--muted);font-size:0.85rem;margin:6px 0 0">Options can have their own photos — on the product page, picking an option swaps the gallery to its photos. Options without photos keep the product images.</p>
     </div>`).join("");
 
   box.querySelectorAll("[data-dim-name],[data-opt-label],[data-opt-delta]").forEach((inp) =>
@@ -255,7 +269,7 @@ function renderVariantEditor() {
   box.querySelectorAll("[data-opt-add]").forEach((b) =>
     b.addEventListener("click", () => {
       syncVariantInputs();
-      editingVariants[Number(b.closest("[data-dim]").dataset.dim)].options.push({ label: "", priceDelta: "" });
+      editingVariants[Number(b.closest("[data-dim]").dataset.dim)].options.push({ label: "", priceDelta: "", images: [] });
       renderVariantEditor();
     }));
   box.querySelectorAll("[data-opt-rm]").forEach((b) =>
@@ -265,6 +279,63 @@ function renderVariantEditor() {
       editingVariants[Number(dimEl.dataset.dim)].options.splice(Number(b.closest("[data-opt]").dataset.opt), 1);
       renderVariantEditor();
     }));
+  // Per-option photo controls (rendered per option so image add/remove
+  // never steals focus from the label/price inputs).
+  editingVariants.forEach((d, i) => d.options.forEach((_, j) => renderOptionImages(i, j)));
+}
+
+// Render one variant option's photo list: thumbnails + URL add + upload.
+// Only this option's container re-renders, so typing in the option's label
+// or price inputs never loses focus.
+function renderOptionImages(i, j) {
+  const box = document.querySelector(`[data-optimgs="${i}:${j}"]`);
+  const opt = editingVariants[i]?.options[j];
+  if (!box || !opt) return;
+  if (!Array.isArray(opt.images)) opt.images = [];
+  box.innerHTML = `
+    <div class="img-list" style="margin-bottom:4px">${opt.images.map((src, k) => `
+      <span class="img-thumb">
+        <img src="${escapeHtml(src)}" alt="option photo ${k + 1}">
+        <button type="button" data-optimg-rm="${k}" title="Remove">×</button>
+      </span>`).join("")}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input data-optimg-url placeholder="Photo URL for this option" style="flex:1;min-width:140px">
+      <button type="button" class="btn small" data-optimg-add>Add</button>
+      <label class="btn small ghost" style="cursor:pointer;margin:0">Upload
+        <input type="file" accept="image/*" data-optimg-file hidden>
+      </label>
+    </div>
+    <p data-optimg-prog style="color:var(--muted);font-size:0.85rem;margin:2px 0 0"></p>`;
+  box.querySelector("[data-optimg-add]").addEventListener("click", () => {
+    const inp = box.querySelector("[data-optimg-url]");
+    const v = inp.value.trim();
+    if (!v) return;
+    opt.images.push(v);
+    renderOptionImages(i, j);
+  });
+  box.querySelectorAll("[data-optimg-rm]").forEach((b) =>
+    b.addEventListener("click", () => {
+      opt.images.splice(Number(b.dataset.optimgRm), 1);
+      renderOptionImages(i, j);
+    }));
+  box.querySelector("[data-optimg-file]").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const prog = box.querySelector("[data-optimg-prog]");
+    try {
+      const url = await uploadImageFile(f, (pct) => { prog.textContent = `Uploading… ${pct}%`; });
+      opt.images.push(url);
+      renderOptionImages(i, j);
+      toast("Image uploaded.");
+    } catch (err) {
+      console.error(err);
+      prog.textContent = "";
+      toast(err.message === "not-image" ? "That file isn't an image."
+        : err.message === "too-big" ? "Image is over 5MB — shrink it first."
+        : "Upload failed — Storage may not be enabled yet, or sign in again.");
+    }
+  });
 }
 
 // Normalized variants array for the product doc (blank delta = 0,
@@ -275,10 +346,16 @@ function collectVariants() {
     .map((d) => ({
       name: String(d.name || "").trim(),
       options: (d.options || [])
-        .map((o) => ({
-          label: String(o.label || "").trim(),
-          priceDelta: o.priceDelta === "" || o.priceDelta == null ? 0 : Number(o.priceDelta) || 0,
-        }))
+        .map((o) => {
+          const opt = {
+            label: String(o.label || "").trim(),
+            priceDelta: o.priceDelta === "" || o.priceDelta == null ? 0 : Number(o.priceDelta) || 0,
+          };
+          const imgs = (Array.isArray(o.images) ? o.images : [])
+            .map((s) => String(s || "").trim()).filter(Boolean);
+          if (imgs.length) opt.images = imgs;
+          return opt;
+        })
         .filter((o) => o.label),
     }))
     .filter((d) => d.name && d.options.length);
@@ -304,6 +381,7 @@ function showProductForm(p) {
     options: (Array.isArray(d.options) ? d.options : []).map((o) => ({
       label: o.label || "",
       priceDelta: o.priceDelta ?? "",
+      images: Array.isArray(o.images) ? [...o.images] : [],
     })),
   }));
   renderVariantEditor();
