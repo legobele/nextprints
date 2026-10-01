@@ -55,12 +55,13 @@ service cloud.firestore {
     match /orders/{id} {
       // Orders can only be created by verified school emails (or the admin
       // placing test orders), and the order must belong to the signer,
-      // start as "pending", and be for a grade we actually serve (8th–12th).
+      // start as "pending", and be for a grade we actually serve (8th–12th,
+      // plus teachers).
       allow create: if (isVerifiedStudent() || isAdmin())
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.status == "pending"
-        && request.resource.data.grade in ["8th", "9th", "10th", "11th", "12th"];
+        && request.resource.data.grade in ["8th", "9th", "10th", "11th", "12th", "n/a (teacher)"];
       // Owners read their own orders; admin reads everything.
       allow read: if isAdmin()
         || (request.auth != null && resource.data.userId == request.auth.uid);

@@ -122,10 +122,11 @@ function render() {
       <select id="f-grade">
         <option value="">Select grade…</option>
         ${GRADES.map((g) => `<option value="${g}">${g} grade</option>`).join("")}
+        <option value="n/a (teacher)">n/a (teacher)</option>
       </select>
     </label>` : ""}
     <button class="btn" id="place-order" style="width:100%;margin-top:8px">Place order · ${fmtMoney(total)} cash on pickup</button>
-    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12 only.</p>
+    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12, plus teachers.</p>
   `;
 
   // qty buttons — race-free: each tap nudges the LIVE cart by a delta
