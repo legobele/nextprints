@@ -1,6 +1,6 @@
 # NextPrints — online shop (no payments)
 
-A static storefront for the 3D-printed fidget business. Customers create an
+A static storefront for the NextPrints 3D printing business. Customers create an
 account with their **school email**, verify it, browse products, and place
 **orders** — no online payment. They pay **cash on pickup/delivery**. An order
 is a reservation.

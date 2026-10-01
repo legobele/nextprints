@@ -108,5 +108,5 @@ export async function fetchDeals() {
 export function productImage(product, ui) {
   // ui = the ui module's placeholderSVG (passed in to avoid a cycle)
   if (product.images && product.images.length) return product.images[0];
-  return ui.placeholderSVG(product.name || "Fidget", 270, 320);
+  return ui.placeholderSVG(product.name || "Product", 270, 320);
 }
