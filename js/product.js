@@ -33,15 +33,15 @@ async function main() {
   if (isPreorder) {
     tierHTML = `
       <div class="tier-box">
-        <div class="row"><span>🔥 Preorder price</span><strong>${fmtMoney(price)}</strong></div>
-        <div class="row"><span>Regular price after</span><span>${fmtMoney(p.price)}</span></div>
-        ${endsAt ? `<div class="row"><span>Preorder ends</span><span class="countdown"><span data-countdown-to="${endsAt.getTime()}"></span> (${fmtDate(endsAt)})</span></div>` : ""}
+        <div class="row"><span>Pre-order price</span><strong>${fmtMoney(price)}</strong></div>
+        <div class="row"><span>Regular price after pre-order</span><span>${fmtMoney(p.price)}</span></div>
+        ${endsAt ? `<div class="row"><span>Pre-order ends</span><span class="countdown"><span data-countdown-to="${endsAt.getTime()}"></span> (${fmtDate(endsAt)})</span></div>` : ""}
       </div>`;
   } else if (upcomingPreorder && startsAt) {
     tierHTML = `
       <div class="tier-box">
-        <div class="row"><span>💤 Preorders open</span><strong>${fmtDate(startsAt)}</strong></div>
-        <div class="row"><span>Preorder price</span><span>${fmtMoney(p.preorderPrice)}</span></div>
+        <div class="row"><span>Pre-orders open</span><strong>${fmtDate(startsAt)}</strong></div>
+        <div class="row"><span>Pre-order price</span><span>${fmtMoney(p.preorderPrice)}</span></div>
         <div class="row"><span>Regular price</span><span>${fmtMoney(p.price)}</span></div>
       </div>`;
   } else {
@@ -50,6 +50,19 @@ async function main() {
         <div class="row"><span>Price</span><strong>${fmtMoney(price)}</strong></div>
       </div>`;
   }
+
+  const specRows = [
+    ["Material", p.material || "PLA"],
+    p.dimensions ? ["Dimensions", p.dimensions] : null,
+    p.deliveryEstimate ? ["Estimated delivery", p.deliveryEstimate] : null,
+    ["Payment", "Cash on pickup or delivery"],
+  ].filter(Boolean);
+  const specHTML = `
+    <table class="spec-table">
+      <tbody>
+        ${specRows.map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`).join("")}
+      </tbody>
+    </table>`;
 
   app.innerHTML = `
     <p><a href="index.html">← Back to shop</a></p>
@@ -60,18 +73,19 @@ async function main() {
           `<img src="${escapeHtml(src)}" data-i="${i}" class="${i === 0 ? "sel" : ""}" alt="photo ${i + 1}">`).join("")}</div>` : ""}
       </div>
       <div>
-        ${isPreorder ? `<span class="badge preorder">Preorder live</span>` : ""}
+        ${isPreorder ? `<span class="badge preorder">Pre-order</span>` : ""}
         <h1 style="margin:8px 0">${escapeHtml(p.name)}</h1>
         ${p.colorsNote ? `<p style="color:var(--muted)">${escapeHtml(p.colorsNote)}</p>` : ""}
         ${tierHTML}
         <p>${escapeHtml(p.description || "")}</p>
+        ${specHTML}
         <div class="qty-stepper">
           <button id="qty-minus" aria-label="decrease">−</button>
           <span id="qty-val">1</span>
           <button id="qty-plus" aria-label="increase">+</button>
         </div>
         <button class="btn" id="add-btn">Add to cart · <span id="add-total">${fmtMoney(price)}</span></button>
-        <p style="color:var(--muted);font-size:0.9rem;margin-top:12px">💵 No online payment — you pay cash on pickup/delivery.</p>
+        <p style="color:var(--muted);font-size:0.9rem;margin-top:12px">No online payment — pay cash on pickup or delivery.</p>
       </div>
     </div>`;
 

@@ -75,7 +75,7 @@ function wireForms(mode, setMode) {
         email: cred.user.email,
         createdAt: serverTimestamp(),
       });
-      toast("Account created — check your inbox to verify 📧");
+      toast("Account created — check your inbox for the verification email.");
     } catch (e) {
       console.error(e);
       err(friendlyAuthError(e));
@@ -102,8 +102,8 @@ function loggedInHTML(user) {
         ? `<span class="status-pill delivered">✓ email verified</span>`
         : `<span class="status-pill pending">email not verified</span>`}</p>
       ${user.emailVerified ? "" : `
-        <div class="notice">📧 You need to verify your email before you can order.
-        We sent a link when you signed up — check spam too.</div>
+        <div class="notice">You need to verify your email before you can order.
+        We sent a link when you signed up — check your spam folder as well.</div>
         <button class="btn small" id="resend">Resend verification email</button>
         <button class="btn small ghost" id="refresh">I've verified — refresh</button>`}
       <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
@@ -133,14 +133,14 @@ onAuthStateChanged(auth, (user) => {
   view.innerHTML = loggedInHTML(user);
   const resend = document.getElementById("resend");
   if (resend) resend.addEventListener("click", async () => {
-    try { await sendEmailVerification(user); toast("Verification email sent 📧"); }
+    try { await sendEmailVerification(user); toast("Verification email sent."); }
     catch (e) { console.error(e); toast("Couldn't send right now — try again in a bit."); }
   });
   const refresh = document.getElementById("refresh");
   if (refresh) refresh.addEventListener("click", async () => {
     try {
       await user.reload();
-      if (auth.currentUser.emailVerified) toast("Verified! You can order now 🎉");
+      if (auth.currentUser.emailVerified) toast("Email verified. You can now place orders.");
       else toast("Still not verified — click the link in your email first.");
     } catch (e) { console.error(e); }
   });

@@ -10,10 +10,10 @@ renderNav("orders");
 document.title = `My orders · ${BRAND_NAME}`;
 
 const STATUS_HINT = {
-  pending: "Received — waiting for confirmation 👀",
-  confirmed: "Confirmed — it's in the print queue 🖨️",
-  ready: "Ready for pickup/delivery! Bring cash 💵",
-  delivered: "Delivered. Enjoy the fidgets 🎉",
+  pending: "Received — waiting for confirmation.",
+  confirmed: "Confirmed — your item is in the print queue.",
+  ready: "Ready for pickup or delivery. Please bring cash.",
+  delivered: "Delivered.",
   cancelled: "Cancelled.",
 };
 

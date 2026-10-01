@@ -1,23 +1,23 @@
-# 🌀 Fidget Lab — online shop (no payments)
+# NextPrints — online shop (no payments)
 
-A tiny static storefront for the 3D-printed fidget business. Customers create an
+A static storefront for the 3D-printed fidget business. Customers create an
 account with their **school email**, verify it, browse products, and place
 **orders** — no online payment. They pay **cash on pickup/delivery**. An order
 is a reservation.
 
 **Stack:** plain HTML/CSS/JS + Firebase JS SDK v10 (modular, via CDN).
-No build step, no npm, no frameworks. Mobile-first dark theme.
+No build step, no npm, no frameworks. Light corporate theme.
 
 ## Pages
 
 | File | What it is |
 |---|---|
-| `index.html` | Storefront: hero, 🔥 live preorders, product grid, ⚡ limited deals |
-| `product.html?id=…` | Product detail: gallery, preorder vs regular price tiers (auto-switch by date), quantity, add to cart |
-| `cart.html` | Cart, promo code, pickup form (name + homeroom), place order → "pay cash on pickup" confirmation |
+| `index.html` | Storefront: hero, how-it-works, current pre-orders, product grid, limited-time deals, delivery info, FAQ |
+| `product.html?id=…` | Product detail: gallery, pre-order vs regular price tiers (auto-switch by date), spec table, estimated delivery, quantity, add to cart |
+| `cart.html` | Cart, promo code, estimated delivery per item, pickup form (name + homeroom + grade on first order), place order → "pay cash on pickup" confirmation |
 | `orders.html` | "My orders" — signed-in user sees their own orders + live status |
 | `account.html` | Signup / login / logout, email verification status + resend |
-| `nxp-ops-7q2.html` | Admin panel (admin email only): Products, Deals, Promo codes, Orders |
+| `nxp-ops-7q2.html` | Admin panel (admin email only, unlisted + noindex): Products, Deals, Promo codes, Orders |
 
 ## One-time Firebase setup
 
@@ -35,7 +35,7 @@ No build step, no npm, no frameworks. Mobile-first dark theme.
 5. **Storage:** Build → Storage → Get started. Then **Rules** tab, paste
    **`storage.rules`**, Publish.
 6. **Seed products:** open `nxp-ops-7q2.html` in the deployed site, sign in as the
-   admin, click **🌱 Seed demo products**. (Or run `seedProducts(db)` from
+   admin, click **Seed demo products**. (Or run `seedProducts(db)` from
    `seed/seed-products.js` in the console on any shop page.)
 7. **Deploy the files** to any static host: GitHub Pages, Netlify, Vercel,
    Firebase Hosting — just upload the whole folder.
@@ -75,6 +75,21 @@ Fields: `type` (`"percent"` | `"fixed"`), `value`, `maxUses`, `usedCount`,
 `pending` → `confirmed` → `ready` → `delivered` (or `cancelled`).
 The admin updates status in the Orders tab; the buyer sees it live on
 `orders.html`. Payment is always cash on pickup — the site never touches money.
+
+## Estimated delivery
+
+Products carry a `deliveryEstimate` string (e.g. "October 7, 2026"), edited in
+the admin product form. It is shown on product cards, the product detail page,
+and each line of the cart/checkout summary.
+
+## Grade gate
+
+First-time buyers are asked "What grade are you in?" at checkout (6th–12th).
+Grades 6th and 7th are blocked: no order is created and the buyer sees
+"NextPrints currently serves students in grades 8–12 only."
+The grade is stored on the order document and shown in the admin Orders table,
+so items can be hand-delivered at school. Repeat buyers are not asked again —
+their grade is taken from their most recent order.
 
 ## Notes / gotchas
 

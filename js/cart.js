@@ -1,7 +1,7 @@
 // Cart + checkout: promo codes, pickup form, order placement (no payments).
 
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { BRAND_NAME, SCHOOL_DOMAIN } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, toDate, toast, placeholderSVG, updateCartBadge } from "./ui.js";
@@ -10,8 +10,12 @@ import { getCart, setQty, clearCart, fetchProduct, getActivePrice, round2 } from
 renderNav("cart");
 document.title = `Cart · ${BRAND_NAME}`;
 
+const GRADES = ["6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+
 let appliedPromo = null; // { code, type, value }
-let lines = []; // resolved cart lines: { productId, qty, name, image, unitPrice, isPreorder }
+let lines = []; // resolved cart lines: { productId, qty, name, image, unitPrice, isPreorder, deliveryEstimate }
+let knownGrade = null; // grade remembered from the customer's most recent order
+let gradeChecked = false;
 
 function discountFor(subtotal, promo) {
   if (!promo) return 0;
@@ -31,6 +35,7 @@ async function loadLines() {
       productId: p.id, qty: l.qty, name: p.name,
       image: (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320)),
       unitPrice: price, isPreorder,
+      deliveryEstimate: p.deliveryEstimate || null,
     });
   }
 }
@@ -40,7 +45,7 @@ function render() {
   document.getElementById("loading").hidden = true;
   if (!lines.length) {
     view.hidden = false;
-    view.innerHTML = `<div class="empty">Your cart is empty 🫗<br><br><a class="btn" href="index.html">Browse the shop</a></div>`;
+    view.innerHTML = `<div class="empty">Your cart is empty.<br><br><a class="btn" href="index.html">Browse the shop</a></div>`;
     return;
   }
   const subtotal = round2(lines.reduce((n, l) => n + l.unitPrice * l.qty, 0));
@@ -54,7 +59,8 @@ function render() {
         <img src="${escapeHtml(l.image)}" alt="${escapeHtml(l.name)}">
         <div class="info">
           <h4>${escapeHtml(l.name)}</h4>
-          <div>${l.isPreorder ? `<span class="badge preorder">preorder</span> ` : ""}${fmtMoney(l.unitPrice)} each</div>
+          <div>${l.isPreorder ? `<span class="badge preorder">pre-order</span> ` : ""}${fmtMoney(l.unitPrice)} each</div>
+          ${l.deliveryEstimate ? `<div class="delivery-note">Estimated delivery: <strong>${escapeHtml(l.deliveryEstimate)}</strong></div>` : ""}
         </div>
         <div class="qty-stepper" style="margin:0">
           <button data-dec="${l.productId}" aria-label="decrease">−</button>
@@ -63,10 +69,10 @@ function render() {
         </div>
       </div>`).join("")}
 
-    <h3>🏷️ Promo code</h3>
+    <h3>Promo code</h3>
     ${appliedPromo
-      ? `<p>✅ <strong>${escapeHtml(appliedPromo.code)}</strong> applied — ${escapeHtml(promoLabel(appliedPromo))}
-           <button class="btn small ghost" id="promo-remove">remove</button></p>`
+      ? `<p><strong>${escapeHtml(appliedPromo.code)}</strong> applied — ${escapeHtml(promoLabel(appliedPromo))}
+           <button class="btn small ghost" id="promo-remove">Remove</button></p>`
       : `<div class="promo-row">
            <input id="promo-input" placeholder="Enter code" autocapitalize="characters">
            <button class="btn small" id="promo-apply">Apply</button>
@@ -78,12 +84,20 @@ function render() {
       <div class="row grand"><span>Total (cash on pickup)</span><span>${fmtMoney(total)}</span></div>
     </div>
 
-    <h3>📍 Pickup details</h3>
+    <h3>Pickup details</h3>
     <div id="verify-notice"></div>
+    <div id="grade-notice"></div>
     <label>Your name<input id="f-name" placeholder="e.g. Alex Rivera" autocomplete="name"></label>
-    <label>Homeroom / grade<input id="f-homeroom" placeholder="e.g. 10-3"></label>
+    <label>Homeroom<input id="f-homeroom" placeholder="e.g. 10-3"></label>
+    ${knownGrade === null ? `
+    <label>What grade are you in?
+      <select id="f-grade">
+        <option value="">Select grade…</option>
+        ${GRADES.map((g) => `<option value="${g}">${g} grade</option>`).join("")}
+      </select>
+    </label>` : ""}
     <button class="btn" id="place-order" style="width:100%;margin-top:8px">Place order · ${fmtMoney(total)} cash on pickup</button>
-    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You'll need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order.</p>
+    <p style="color:var(--muted);font-size:0.9rem">No online payment — bring cash when you pick up. You need a verified <strong>@${escapeHtml(SCHOOL_DOMAIN)}</strong> email to order. NextPrints serves grades 8–12 only.</p>
   `;
 
   // qty buttons
@@ -135,12 +149,26 @@ async function refreshVerifyNotice() {
   if (!slot) return;
   const user = auth.currentUser;
   if (user && !user.emailVerified) {
-    slot.innerHTML = `<div class="notice">📧 Your email isn't verified yet — check your inbox, then <a href="account.html">verify here</a> before ordering.</div>`;
+    slot.innerHTML = `<div class="notice">Your email is not verified yet — check your inbox, then <a href="account.html">verify here</a> before ordering.</div>`;
   } else slot.innerHTML = "";
 }
 
 async function reload() {
   await loadLines();
+  // Remember the grade from the customer's most recent order (if any),
+  // so first-time buyers are asked once and repeat buyers aren't asked again.
+  const user = auth.currentUser;
+  if (user && !gradeChecked) {
+    gradeChecked = true;
+    try {
+      const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", user.uid)));
+      const prior = snap.docs
+        .map((d) => d.data())
+        .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+      const withGrade = prior.find((o) => o.grade);
+      if (withGrade) knownGrade = withGrade.grade;
+    } catch (e) { console.warn("grade lookup failed", e); }
+  }
   render();
 }
 
@@ -159,9 +187,24 @@ async function placeOrder() {
   }
   const name = document.getElementById("f-name").value.trim();
   const homeroom = document.getElementById("f-homeroom").value.trim();
-  if (!name) { toast("Add your name so we know who to hand it to."); return; }
-  if (!homeroom) { toast("Add your homeroom / grade for pickup."); return; }
-  if (!lines.length) { toast("Cart is empty."); return; }
+  if (!name) { toast("Please enter your name."); return; }
+  if (!homeroom) { toast("Please enter your homeroom."); return; }
+  if (!lines.length) { toast("Your cart is empty."); return; }
+
+  // Grade gate: reuse the grade from a previous order when we have one;
+  // otherwise the buyer must pick it now. Grades below 8th are blocked.
+  let grade = knownGrade;
+  if (!grade) {
+    const sel = document.getElementById("f-grade");
+    grade = sel ? sel.value : "";
+    if (!grade) { toast("Please select your grade."); if (sel) sel.focus(); return; }
+  }
+  if (grade === "6th" || grade === "7th") {
+    const slot = document.getElementById("grade-notice");
+    if (slot) slot.innerHTML = `<div class="error-box">NextPrints currently serves students in grades 8–12 only.</div>`;
+    window.scrollTo(0, 0);
+    return;
+  }
 
   const btn = document.getElementById("place-order");
   btn.disabled = true;
@@ -192,6 +235,7 @@ async function placeOrder() {
         email: user.email,
         name,
         homeroom,
+        grade,
         items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
         subtotal,
         discount,
@@ -211,10 +255,9 @@ async function placeOrder() {
     done.hidden = false;
     done.innerHTML = `
       <div class="card"><div class="card-body" style="text-align:center;padding:32px 20px">
-        <div style="font-size:3rem">🎉</div>
-        <h2>Order placed!</h2>
-        <p>Order <code class="inline">${escapeHtml(orderId.slice(0, 8))}…</code> is reserved.</p>
-        <p>Bring <strong>${fmtMoney(total)} in cash</strong> on pickup/delivery day.<br>
+        <h2>Order placed</h2>
+        <p>Order <code class="inline">${escapeHtml(orderId.slice(0, 8))}…</code> has been reserved.</p>
+        <p>Bring <strong>${fmtMoney(total)} in cash</strong> on pickup or delivery day.<br>
         Track it under <a href="orders.html">My orders</a>.</p>
         <a class="btn" href="index.html">Back to shop</a>
       </div></div>`;

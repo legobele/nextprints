@@ -48,8 +48,7 @@ onAuthStateChanged(auth, async (user) => {
     panel.hidden = true;
     gate.innerHTML = `
       <div class="card"><div class="card-body" style="text-align:center;padding:32px 20px">
-        <div style="font-size:2.5rem">🔒</div>
-        <h2>Admins only</h2>
+        <h2>Restricted</h2>
         <p>Sign in as <code class="inline">${escapeHtml(ADMIN_EMAIL)}</code> to manage the shop.</p>
         <a class="btn" href="account.html">Go to sign in</a>
       </div></div>`;
@@ -112,7 +111,7 @@ async function refreshProducts() {
         <button class="btn small danger" data-pdel="${p.id}">Delete</button>
       </td>
     </tr>`;
-  }).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">No products yet — seed the demo data 🌱</td></tr>`;
+  }).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">No products yet — use "Seed demo products" to add the starter catalog.</td></tr>`;
 
   document.querySelectorAll("[data-pedit]").forEach((b) =>
     b.addEventListener("click", () => showProductForm(products.find((p) => p.id === b.dataset.pedit))));
@@ -131,6 +130,9 @@ function showProductForm(p) {
   document.getElementById("pf-name").value = p?.name || "";
   document.getElementById("pf-colors").value = p?.colorsNote || "";
   document.getElementById("pf-desc").value = p?.description || "";
+  document.getElementById("pf-material").value = p?.material || "";
+  document.getElementById("pf-dimensions").value = p?.dimensions || "";
+  document.getElementById("pf-delivery").value = p?.deliveryEstimate || "";
   document.getElementById("pf-price").value = p?.price ?? "";
   document.getElementById("pf-preprice").value = p?.preorderPrice ?? "";
   document.getElementById("pf-prestart").value = dateToDtLocal(p?.preorderStartAt);
@@ -167,6 +169,9 @@ async function saveProduct(e) {
     name: document.getElementById("pf-name").value.trim(),
     colorsNote: document.getElementById("pf-colors").value.trim(),
     description: document.getElementById("pf-desc").value.trim(),
+    material: document.getElementById("pf-material").value.trim(),
+    dimensions: document.getElementById("pf-dimensions").value.trim(),
+    deliveryEstimate: document.getElementById("pf-delivery").value.trim(),
     price: Number(document.getElementById("pf-price").value),
     preorderPrice: numOrNull(document.getElementById("pf-preprice").value),
     preorderStartAt: dtLocalToDate(document.getElementById("pf-prestart").value),
@@ -195,7 +200,7 @@ async function saveProduct(e) {
       document.getElementById("pf-file").value = "";
     }
     document.getElementById("prod-form").hidden = true;
-    toast("Product saved ✅");
+    toast("Product saved.");
     await refreshProducts();
   } catch (err) {
     console.error(err);
@@ -207,7 +212,7 @@ async function onSeed() {
   if (!confirm("Add the 3 demo products (gear shifter tiers) to Firestore?")) return;
   try {
     const ids = await seedProducts(db);
-    toast(`Seeded ${ids.length} products 🌱`);
+    toast(`Seeded ${ids.length} products.`);
     await refreshProducts();
   } catch (err) {
     console.error(err);
@@ -290,7 +295,7 @@ async function saveDeal(e) {
     if (editingDealId) await updateDoc(doc(db, "deals", editingDealId), data);
     else await addDoc(collection(db, "deals"), { ...data, createdAt: serverTimestamp() });
     document.getElementById("deal-form").hidden = true;
-    toast("Deal saved ✅");
+    toast("Deal saved.");
     refreshDeals();
   } catch (err) {
     console.error(err);
@@ -374,7 +379,7 @@ async function savePromo(e) {
       await setDoc(doc(db, "promoCodes", code), { ...data, usedCount: 0, createdAt: serverTimestamp() });
     }
     document.getElementById("promo-form").hidden = true;
-    toast("Promo code saved ✅");
+    toast("Promo code saved.");
     refreshPromos();
   } catch (err) {
     console.error(err);
@@ -404,14 +409,15 @@ function renderOrders() {
       <td><code class="inline">${escapeHtml(o.id.slice(0, 8))}…</code></td>
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
-      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">🏷️ ${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
+      <td>${escapeHtml(o.grade || "—")}</td>
+      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
       <td>
         <select data-ostatus="${o.id}" style="margin:0;min-width:130px">
           ${ORDER_STATUSES.map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}
         </select>
       </td>
-    </tr>`).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">No orders yet.</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">No orders yet.</td></tr>`;
 
   document.querySelectorAll("[data-ostatus]").forEach((sel) =>
     sel.addEventListener("change", async () => {

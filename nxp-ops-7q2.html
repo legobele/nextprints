@@ -20,7 +20,7 @@
 <body>
 <div id="site-nav"></div>
 <main class="container">
-  <h1>🛠️ Admin</h1>
+  <h1>Admin</h1>
   <div id="gate" hidden></div>
 
   <div id="admin-panel" hidden>
@@ -35,7 +35,7 @@
     <section id="tab-products" class="tabpane active">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn small" id="prod-new">+ New product</button>
-        <button class="btn small ghost" id="seed-btn">🌱 Seed demo products</button>
+        <button class="btn small ghost" id="seed-btn">Seed demo products</button>
       </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Name</th><th>Price</th><th>Preorder</th><th>Status</th><th></th></tr></thead>
@@ -49,6 +49,11 @@
           <div><label>Color note (short)<input id="pf-colors" placeholder="e.g. Black only"></label></div>
         </div>
         <label>Description<textarea id="pf-desc"></textarea></label>
+        <div class="form-grid two">
+          <div><label>Material<input id="pf-material" placeholder="e.g. PLA"></label></div>
+          <div><label>Dimensions<input id="pf-dimensions" placeholder="e.g. 9 × 5 × 3 cm"></label></div>
+        </div>
+        <label>Estimated delivery (shown to customers)<input id="pf-delivery" placeholder="e.g. October 7, 2026"></label>
         <div class="form-grid two">
           <div><label>Regular price<input id="pf-price" type="number" step="0.01" min="0" required></label></div>
           <div><label>Preorder price (blank = none)<input id="pf-preprice" type="number" step="0.01" min="0"></label></div>
@@ -129,7 +134,7 @@
         </select>
       </label>
       <div class="table-wrap"><table>
-        <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+        <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Grade</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
         <tbody id="ord-rows"></tbody>
       </table></div>
     </section>

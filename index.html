@@ -20,20 +20,76 @@
 <div id="site-nav"></div>
 <main class="container">
   <section class="hero">
-    <h1 id="hero-title">🌀 Shop</h1>
-    <p>3D-printed fidget toys. Reserve online, pay cash on pickup. No cap. 🧸</p>
-    <a class="btn" href="#products">Browse the drop</a>
+    <h1 id="hero-title">Shop</h1>
+    <p>3D-printed fidget toys, made to order. Reserve online and pay cash on pickup or delivery.</p>
+    <a class="btn" href="#products">Shop products</a>
+  </section>
+
+  <section>
+    <h2 class="section-title">How ordering works</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">1</span>
+        <h3>Reserve online</h3>
+        <p>Create an account with your school email, verify it, and place your order.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <h3>Pay cash on pickup</h3>
+        <p>There is no online payment. Bring cash when your item is delivered or ready for pickup.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <h3>Receive your item</h3>
+        <p>Items are hand-delivered at school. Track your order status under My orders.</p>
+      </div>
+    </div>
   </section>
 
   <div id="deals-section"></div>
 
-  <h2 class="section-title" id="preorders-heading" hidden>🔥 Live preorders</h2>
+  <h2 class="section-title" id="preorders-heading" hidden>Current pre-orders</h2>
   <div class="grid" id="preorder-grid"></div>
 
   <h2 class="section-title" id="products">All products</h2>
   <div class="grid" id="product-grid"></div>
-  <div class="empty" id="loading">Loading the goods…</div>
+  <div class="empty" id="loading">Loading products…</div>
+
+  <section class="info-panel">
+    <h2>Delivery and pickup</h2>
+    <p>All orders are fulfilled in person at school. Each product page lists an estimated delivery date, which is updated as print batches are scheduled. On checkout you will be asked for your name, homeroom, and grade so your order can be routed to you. Payment is cash only, due when you receive your item.</p>
+  </section>
+
+  <section>
+    <h2 class="section-title">Frequently asked questions</h2>
+    <div class="faq">
+      <details>
+        <summary>How do I pay?</summary>
+        <p>Cash only, in person. There is no online payment — you pay when your item is delivered or picked up.</p>
+      </details>
+      <details>
+        <summary>When do I get my item?</summary>
+        <p>Each product page shows an estimated delivery date. Pre-order items are printed in batches and delivered on or around the listed date. You can track your order status under My orders.</p>
+      </details>
+      <details>
+        <summary>Who can order?</summary>
+        <p>NextPrints currently serves students in grades 8–12 only. You must register with a verified school email address (@intermetro.edu) to place an order.</p>
+      </details>
+      <details>
+        <summary>How do pre-orders work?</summary>
+        <p>Pre-order pricing is available until the listed end date. After that, the product switches to its regular price. Pre-order items are delivered in batches starting on the estimated delivery date.</p>
+      </details>
+      <details>
+        <summary>Can I cancel my order?</summary>
+        <p>Yes. You can cancel a pending order from the My orders page before it is confirmed.</p>
+      </details>
+    </div>
+  </section>
 </main>
+<footer class="site-footer">
+  <p><strong>NextPrints</strong> — 3D-printed fidget toys.</p>
+  <p>Questions about an order? Contact us through your school email after placing your order, and reference your order number.</p>
+</footer>
 <script type="module" src="js/index.js"></script>
 </body>
 </html>

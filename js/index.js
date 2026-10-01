@@ -6,21 +6,24 @@ import { fetchProducts, fetchDeals, getActivePrice } from "./store.js";
 
 renderNav("shop");
 document.title = `${BRAND_NAME} · Shop`;
-document.getElementById("hero-title").textContent = `🌀 ${BRAND_NAME}`;
+document.getElementById("hero-title").textContent = BRAND_NAME;
 
 function cardHTML(p) {
   const now = new Date();
   const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
   const img = (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320));
   const badge = isPreorder
-    ? `<span class="badge preorder">Preorder</span>
-       ${endsAt ? `<span class="countdown">ends in <span data-countdown-to="${endsAt.getTime()}"></span></span>` : ""}`
+    ? `<span class="badge preorder">Pre-order</span>
+       ${endsAt ? `<span class="countdown">Ends <span data-countdown-to="${endsAt.getTime()}"></span></span>` : ""}`
     : upcomingPreorder && startsAt
-    ? `<span class="badge soon">Preorders open ${fmtDate(startsAt)}</span>`
+    ? `<span class="badge soon">Pre-orders open ${fmtDate(startsAt)}</span>`
     : "";
   const priceRow = isPreorder
     ? `<div class="price-row"><span class="price">${fmtMoney(price)}</span><span class="price strike">${fmtMoney(p.price)}</span></div>`
     : `<div class="price-row"><span class="price">${fmtMoney(price)}</span></div>`;
+  const delivery = p.deliveryEstimate
+    ? `<p class="delivery-note">Estimated delivery: <strong>${escapeHtml(p.deliveryEstimate)}</strong></p>`
+    : "";
   return `
     <a class="card" href="product.html?id=${encodeURIComponent(p.id)}" style="color:inherit">
       <img src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}" loading="lazy">
@@ -29,6 +32,7 @@ function cardHTML(p) {
         <h3>${escapeHtml(p.name)}</h3>
         ${p.colorsNote ? `<p class="desc">${escapeHtml(p.colorsNote)}</p>` : ""}
         ${priceRow}
+        ${delivery}
       </div>
     </a>`;
 }
@@ -63,7 +67,7 @@ async function main() {
         })
         .join("");
       if (cards) {
-        dealsSection.innerHTML = `<h2 class="section-title">⚡ Limited deals</h2><div class="grid">${cards}</div>`;
+        dealsSection.innerHTML = `<h2 class="section-title">Limited-time deals</h2><div class="grid">${cards}</div>`;
       }
     }
 
@@ -79,7 +83,7 @@ async function main() {
     const grid = document.getElementById("product-grid");
     grid.innerHTML = products.length
       ? products.map(cardHTML).join("")
-      : `<div class="empty">Nothing here yet — check back soon 👀</div>`;
+      : `<div class="empty">No products available at this time. Please check back later.</div>`;
 
     startCountdowns();
   } catch (err) {

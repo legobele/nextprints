@@ -1,7 +1,7 @@
 // Demo seed data for the fidget shop.
 //
 // Run it by opening nxp-ops-7q2.html (signed in as the admin) and clicking
-// "🌱 Seed demo products" — that button imports this module.
+// "Seed demo products" — that button imports this module.
 // (You can also paste this file's body into the browser console on any
 // shop page, as long as `db` from js/firebase.js is in scope.)
 
@@ -34,9 +34,12 @@ const PRODUCTS = [
   {
     name: "Gear Shifter Fidget",
     description:
-      "A fidgety little manual-transmission shifter with a satisfying H-pattern gate. " +
-      "Printed in black PLA. Preorder now for $3 — goes up to $4 after Oct 2.",
-    colorsNote: "Black only · delivery from Oct 7, 2026",
+      "A manual-transmission style gear shifter fidget with an H-pattern gate. " +
+      "3D-printed in black PLA. Pre-order pricing ends October 2, 2026.",
+    colorsNote: "Black · PLA",
+    material: "PLA",
+    dimensions: "Approx. 9 × 5 × 3 cm",
+    deliveryEstimate: "October 7, 2026",
     price: 4.0,
     preorderPrice: 3.0,
     preorderStartAt: null, // live immediately
@@ -47,9 +50,12 @@ const PRODUCTS = [
   {
     name: "Gear Shifter Fidget — Plain Colors",
     description:
-      "The same shifter, now in color. One solid color (non-black) — pick your vibe. " +
-      "Preorders open Oct 15–20 at $7, then $10 after.",
-    colorsNote: "One color (non-black) · colors ~Oct 30",
+      "The gear shifter fidget in a single solid color (non-black). " +
+      "3D-printed in PLA. Pre-orders open October 15–20, 2026.",
+    colorsNote: "Single color (non-black) · PLA",
+    material: "PLA",
+    dimensions: "Approx. 9 × 5 × 3 cm",
+    deliveryEstimate: "October 30, 2026",
     price: 10.0,
     preorderPrice: 7.0,
     preorderStartAt: T("2026-10-15T00:00:00-04:00"),
@@ -60,9 +66,12 @@ const PRODUCTS = [
   {
     name: "Gear Shifter Fidget — Multicolor",
     description:
-      "Full multicolor print — multiple colors in a single print. " +
-      "Preorders Nov 7–12 at $12, then $15 after. Delivery Dec 1, 2026 — just in time for the holidays.",
-    colorsNote: "Multicolor print · delivery Dec 1, 2026",
+      "The gear shifter fidget printed in multiple colors in a single print. " +
+      "3D-printed in PLA. Pre-orders open November 7–12, 2026.",
+    colorsNote: "Multicolor print · PLA",
+    material: "PLA",
+    dimensions: "Approx. 9 × 5 × 3 cm",
+    deliveryEstimate: "December 1, 2026",
     price: 15.0,
     preorderPrice: 12.0,
     preorderStartAt: T("2026-11-07T00:00:00-04:00"),

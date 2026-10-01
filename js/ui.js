@@ -97,7 +97,7 @@ export function renderNav(active = "") {
   if (!el) return;
   el.innerHTML = `
     <header class="nav">
-      <a class="brand" href="index.html">🌀 ${escapeHtml(BRAND_NAME)}</a>
+      <a class="brand" href="index.html">${escapeHtml(BRAND_NAME)}</a>
       <nav class="nav-links">
         <a href="index.html" class="${active === "shop" ? "active" : ""}">Shop</a>
         <a href="orders.html" class="${active === "orders" ? "active" : ""}">My orders</a>
@@ -106,7 +106,7 @@ export function renderNav(active = "") {
       </nav>
     </header>
     <div class="config-banner" id="config-banner" hidden>
-      ⚠️ Firebase isn't configured yet — paste your keys into <code>js/firebase-config.js</code> (see README.md).
+      Firebase is not configured yet — paste your keys into <code>js/firebase-config.js</code> (see README.md).
     </div>
     <div class="toast" id="toast" hidden></div>`;
   updateCartBadge();
