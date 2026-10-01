@@ -15,7 +15,7 @@ No build step, no npm, no frameworks. Light corporate theme.
 | `index.html` | Storefront: hero, how-it-works, current pre-orders, product grid, limited-time deals, delivery info, FAQ |
 | `product.html?id=…` | Product detail: gallery, pre-order vs regular price tiers (auto-switch by date), spec table, estimated delivery, quantity, add to cart |
 | `cart.html` | Cart, promo code, estimated delivery per item, pickup form (name + homeroom + grade on first order), place order → "pay cash on pickup" confirmation |
-| `orders.html` | "My orders" — signed-in user sees their own orders + live status |
+| `orders.html` | "My orders" — signed-in user sees their own orders with a visual status tracker (Order placed → Confirmed → Printing → Ready for pickup → Delivered), per-item batch numbers, and live status |
 | `account.html` | Signup / login / logout, email verification status + resend |
 | `nxp-ops-7q2.html` | Admin panel (admin email only, unlisted + noindex): Products, Deals, Promo codes, Orders |
 
@@ -72,9 +72,16 @@ Fields: `type` (`"percent"` | `"fixed"`), `value`, `maxUses`, `usedCount`,
 
 ## Order flow
 
-`pending` → `confirmed` → `ready` → `delivered` (or `cancelled`).
-The admin updates status in the Orders tab; the buyer sees it live on
+`pending` → `confirmed` → `printing` → `ready` → `delivered` (or `cancelled`).
+The admin updates status in the Orders tab; the buyer sees a visual tracker on
 `orders.html`. Payment is always cash on pickup — the site never touches money.
+
+## Batch numbers
+
+Products carry a `batchNumber` (e.g. "001"), edited in the admin product form.
+At checkout the batch number (and product description) is snapshotted into
+each order item, so old orders keep their original batch. It is shown per line
+item in both the customer's order tracker and the admin Orders table.
 
 ## Estimated delivery
 
@@ -90,6 +97,19 @@ Grades 6th and 7th are blocked: no order is created and the buyer sees
 The grade is stored on the order document and shown in the admin Orders table,
 so items can be hand-delivered at school. Repeat buyers are not asked again —
 their grade is taken from their most recent order.
+
+## Reviews
+
+After an order is marked `delivered`, the next time that customer opens the
+site they are prompted (in-app modal, one product at a time) to leave a 1–5
+star rating plus an optional comment. Reviews live in the `reviews` collection
+(`productId`, `userId`, `email`, `rating`, `comment`, `createdAt`), are public
+to read, and each product shows its average rating and review count on cards
+and the product page. A customer is only prompted once per product (an existing
+review by that user suppresses the prompt).
+**Rules note:** the `reviews` block was added to the local `firestore.rules`
+file but NOT published — paste + publish it in the Firebase console before
+reviews will save.
 
 ## Notes / gotchas
 

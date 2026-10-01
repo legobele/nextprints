@@ -3,6 +3,9 @@
 import { BRAND_NAME } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, toast, placeholderSVG, updateCartBadge } from "./ui.js";
 import { fetchProduct, getActivePrice, addToCart } from "./store.js";
+import { ratingLineHTML } from "./reviews.js";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "./firebase.js";
 
 renderNav("shop");
 
@@ -24,6 +27,12 @@ async function main() {
     return;
   }
   document.title = `${p.name} · ${BRAND_NAME}`;
+
+  let reviews = [];
+  try {
+    const rsnap = await getDocs(query(collection(db, "reviews"), where("productId", "==", p.id)));
+    reviews = rsnap.docs.map((d) => d.data());
+  } catch (e) { console.warn("reviews load failed", e); }
 
   const now = new Date();
   const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
@@ -75,6 +84,7 @@ async function main() {
       <div>
         ${isPreorder ? `<span class="badge preorder">Pre-order</span>` : ""}
         <h1 style="margin:8px 0">${escapeHtml(p.name)}</h1>
+        ${ratingLineHTML(reviews, p.id)}
         ${p.colorsNote ? `<p style="color:var(--muted)">${escapeHtml(p.colorsNote)}</p>` : ""}
         ${tierHTML}
         <p>${escapeHtml(p.description || "")}</p>

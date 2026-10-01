@@ -40,6 +40,7 @@ const PRODUCTS = [
     material: "PLA",
     dimensions: "Approx. 9 × 5 × 3 cm",
     deliveryEstimate: "October 7, 2026",
+    batchNumber: "001",
     price: 4.0,
     preorderPrice: 3.0,
     preorderStartAt: null, // live immediately
@@ -56,6 +57,7 @@ const PRODUCTS = [
     material: "PLA",
     dimensions: "Approx. 9 × 5 × 3 cm",
     deliveryEstimate: "October 30, 2026",
+    batchNumber: "001",
     price: 10.0,
     preorderPrice: 7.0,
     preorderStartAt: T("2026-10-15T00:00:00-04:00"),
@@ -72,6 +74,7 @@ const PRODUCTS = [
     material: "PLA",
     dimensions: "Approx. 9 × 5 × 3 cm",
     deliveryEstimate: "December 1, 2026",
+    batchNumber: "001",
     price: 15.0,
     preorderPrice: 12.0,
     preorderStartAt: T("2026-11-07T00:00:00-04:00"),

@@ -36,6 +36,9 @@ async function loadLines() {
       image: (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320)),
       unitPrice: price, isPreorder,
       deliveryEstimate: p.deliveryEstimate || null,
+      // Snapshotted so old orders keep the original batch/description.
+      description: p.description || "",
+      batchNumber: p.batchNumber || "",
     });
   }
 }
@@ -236,7 +239,7 @@ async function placeOrder() {
         name,
         homeroom,
         grade,
-        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
+        items: lines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, description: l.description, batchNumber: l.batchNumber })),
         subtotal,
         discount,
         total,

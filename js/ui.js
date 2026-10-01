@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, FIREBASE_CONFIGURED } from "./firebase.js";
 import { BRAND_NAME, ADMIN_EMAIL, CURRENCY } from "./config.js";
 import { cartCount } from "./store.js";
+import { maybePromptReview } from "./reviews.js";
 
 export function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -125,5 +126,7 @@ export function renderNav(active = "") {
     slot.innerHTML =
       (isAdmin ? `<a href="nxp-ops-7q2.html" class="${active === "admin" ? "active" : ""}">Admin</a>` : "") +
       `<a href="account.html" class="${active === "account" ? "active" : ""}">${escapeHtml(user.email.split("@")[0])}</a>`;
+    // In-app review prompt after delivery (never on the admin page).
+    if (!location.pathname.includes("nxp-ops-7q2")) maybePromptReview(user);
   });
 }

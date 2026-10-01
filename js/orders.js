@@ -12,10 +12,49 @@ document.title = `My orders · ${BRAND_NAME}`;
 const STATUS_HINT = {
   pending: "Received — waiting for confirmation.",
   confirmed: "Confirmed — your item is in the print queue.",
+  printing: "Printing — your item is being produced.",
   ready: "Ready for pickup or delivery. Please bring cash.",
   delivered: "Delivered.",
   cancelled: "Cancelled.",
 };
+
+// Order placed → Confirmed → Printing → Ready for pickup → Delivered
+const TRACK_STEPS = [
+  ["pending", "Order placed"],
+  ["confirmed", "Confirmed"],
+  ["printing", "Printing"],
+  ["ready", "Ready for pickup"],
+  ["delivered", "Delivered"],
+];
+
+function trackerHTML(status) {
+  if (status === "cancelled") {
+    return `<div class="error-box">This order was cancelled.</div>`;
+  }
+  const idx = TRACK_STEPS.findIndex(([s]) => s === status);
+  const cur = idx === -1 ? 0 : idx;
+  return `
+    <div class="stepper" aria-label="Order status">
+      ${TRACK_STEPS.map(([s, label], i) => `
+        <div class="stepper-step${i < cur ? " done" : ""}${i === cur ? " current" : ""}">
+          <span class="stepper-dot"></span>
+          <span class="stepper-label">${label}</span>
+        </div>`).join("")}
+    </div>`;
+}
+
+function trunc(s, n = 120) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
+}
+
+function itemHTML(i) {
+  return `
+    <div class="tracker-item">
+      <div><strong>${i.qty} × ${escapeHtml(i.name)}</strong>${i.batchNumber ? `<span class="batch-tag">Batch #${escapeHtml(i.batchNumber)}</span>` : ""}</div>
+      ${i.description ? `<p class="desc clamp-2">${escapeHtml(trunc(i.description))}</p>` : ""}
+    </div>`;
+}
 
 onAuthStateChanged(auth, async (user) => {
   const loading = document.getElementById("loading");
@@ -43,12 +82,11 @@ onAuthStateChanged(auth, async (user) => {
           <span class="status-pill ${escapeHtml(o.status)}">${escapeHtml(o.status)}</span>
         </div>
         <p style="color:var(--muted);font-size:0.88rem;margin:6px 0">
-          ${fmtDate(o.createdAt)} · ${escapeHtml(o.name || "")} · ${escapeHtml(o.homeroom || "")}
+          ${fmtDate(o.createdAt)} · ${escapeHtml(o.name || "")} · ${escapeHtml(o.homeroom || "")}${o.grade ? ` · Grade ${escapeHtml(o.grade)}` : ""}
         </p>
+        ${trackerHTML(o.status)}
         <p style="font-size:0.92rem">${STATUS_HINT[o.status] || ""}</p>
-        <div style="font-size:0.92rem">
-          ${(o.items || []).map((i) => `• ${i.qty} × ${escapeHtml(i.name)} — ${fmtMoney(i.unitPrice * i.qty)}`).join("<br>")}
-        </div>
+        <div>${(o.items || []).map(itemHTML).join("")}</div>
         <div class="totals" style="margin:10px 0 0">
           <div class="row"><span>Subtotal</span><span>${fmtMoney(o.subtotal)}</span></div>
           ${o.discount ? `<div class="row"><span>Discount${o.promoCode ? ` (${escapeHtml(o.promoCode)})` : ""}</span><span>−${fmtMoney(o.discount)}</span></div>` : ""}

@@ -15,7 +15,7 @@ import { seedProducts } from "../seed/seed-products.js";
 renderNav("admin");
 document.title = `Admin · ${BRAND_NAME}`;
 
-const ORDER_STATUSES = ["pending", "confirmed", "ready", "delivered", "cancelled"];
+const ORDER_STATUSES = ["pending", "confirmed", "printing", "ready", "delivered", "cancelled"];
 
 let products = [];
 let deals = [];
@@ -133,6 +133,7 @@ function showProductForm(p) {
   document.getElementById("pf-material").value = p?.material || "";
   document.getElementById("pf-dimensions").value = p?.dimensions || "";
   document.getElementById("pf-delivery").value = p?.deliveryEstimate || "";
+  document.getElementById("pf-batch").value = p?.batchNumber || "";
   document.getElementById("pf-price").value = p?.price ?? "";
   document.getElementById("pf-preprice").value = p?.preorderPrice ?? "";
   document.getElementById("pf-prestart").value = dateToDtLocal(p?.preorderStartAt);
@@ -172,6 +173,7 @@ async function saveProduct(e) {
     material: document.getElementById("pf-material").value.trim(),
     dimensions: document.getElementById("pf-dimensions").value.trim(),
     deliveryEstimate: document.getElementById("pf-delivery").value.trim(),
+    batchNumber: document.getElementById("pf-batch").value.trim(),
     price: Number(document.getElementById("pf-price").value),
     preorderPrice: numOrNull(document.getElementById("pf-preprice").value),
     preorderStartAt: dtLocalToDate(document.getElementById("pf-prestart").value),
@@ -410,7 +412,7 @@ function renderOrders() {
       <td>${fmtDate(o.createdAt)}</td>
       <td><strong>${escapeHtml(o.name || "")}</strong><br><span style="color:var(--muted)">${escapeHtml(o.email || "")} · ${escapeHtml(o.homeroom || "")}</span></td>
       <td>${escapeHtml(o.grade || "—")}</td>
-      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
+      <td>${(o.items || []).map((i) => `${i.qty}× ${escapeHtml(i.name)}${i.batchNumber ? ` <span class="batch-tag">Batch #${escapeHtml(i.batchNumber)}</span>` : ""}`).join("<br>")}${o.promoCode ? `<br><span style="color:var(--muted)">${escapeHtml(o.promoCode)} (−${fmtMoney(o.discount)})</span>` : ""}</td>
       <td><strong>${fmtMoney(o.total)}</strong></td>
       <td>
         <select data-ostatus="${o.id}" style="margin:0;min-width:130px">

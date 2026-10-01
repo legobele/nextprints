@@ -3,12 +3,13 @@
 import { BRAND_NAME } from "./config.js";
 import { renderNav, escapeHtml, fmtMoney, fmtDate, toDate, startCountdowns, placeholderSVG } from "./ui.js";
 import { fetchProducts, fetchDeals, getActivePrice } from "./store.js";
+import { fetchReviews, ratingLineHTML } from "./reviews.js";
 
 renderNav("shop");
 document.title = `${BRAND_NAME} · Shop`;
 document.getElementById("hero-title").textContent = BRAND_NAME;
 
-function cardHTML(p) {
+function cardHTML(p, reviews) {
   const now = new Date();
   const { price, isPreorder, endsAt, upcomingPreorder, startsAt } = getActivePrice(p, now);
   const img = (p.images && p.images.length ? p.images[0] : placeholderSVG(p.name, 270, 320));
@@ -30,6 +31,7 @@ function cardHTML(p) {
       <div class="card-body">
         ${badge}
         <h3>${escapeHtml(p.name)}</h3>
+        ${ratingLineHTML(reviews, p.id)}
         ${p.colorsNote ? `<p class="desc">${escapeHtml(p.colorsNote)}</p>` : ""}
         ${priceRow}
         ${delivery}
@@ -40,7 +42,7 @@ function cardHTML(p) {
 async function main() {
   const loading = document.getElementById("loading");
   try {
-    const [products, deals] = await Promise.all([fetchProducts(), fetchDeals()]);
+    const [products, deals, reviews] = await Promise.all([fetchProducts(), fetchDeals(), fetchReviews().catch(() => [])]);
     loading.hidden = true;
 
     // Deals section
@@ -76,13 +78,13 @@ async function main() {
     const live = products.filter((p) => getActivePrice(p, now).isPreorder);
     if (live.length) {
       document.getElementById("preorders-heading").hidden = false;
-      document.getElementById("preorder-grid").innerHTML = live.map(cardHTML).join("");
+      document.getElementById("preorder-grid").innerHTML = live.map((p) => cardHTML(p, reviews)).join("");
     }
 
     // Full grid
     const grid = document.getElementById("product-grid");
     grid.innerHTML = products.length
-      ? products.map(cardHTML).join("")
+      ? products.map((p) => cardHTML(p, reviews)).join("")
       : `<div class="empty">No products available at this time. Please check back later.</div>`;
 
     startCountdowns();
