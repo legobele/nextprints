@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// ============================================================
+//  FIDGET SHOP — Firebase Storage security rules
+//
+//  Deploy: Firebase console → Storage → Rules tab →
+//  paste this file → Publish.
+//
+//  ★ The email below must match ADMIN_EMAIL in js/config.js
+//    and isAdmin() in firestore.rules.
+// ============================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Product photos: public to view, admin-only to upload/delete.
+    match /product-images/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.token.email == "legobele@gmail.com";
+    }
+
+    // Default deny.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

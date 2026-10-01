@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
+    "firebase/storage": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="site-nav"></div>
+<main class="container">
+  <section class="hero">
+    <h1 id="hero-title">🌀 Shop</h1>
+    <p>3D-printed fidget toys. Reserve online, pay cash on pickup. No cap. 🧸</p>
+    <a class="btn" href="#products">Browse the drop</a>
+  </section>
+
+  <div id="deals-section"></div>
+
+  <h2 class="section-title" id="preorders-heading" hidden>🔥 Live preorders</h2>
+  <div class="grid" id="preorder-grid"></div>
+
+  <h2 class="section-title" id="products">All products</h2>
+  <div class="grid" id="product-grid"></div>
+  <div class="empty" id="loading">Loading the goods…</div>
+</main>
+<script type="module" src="js/index.js"></script>
+</body>
+</html>

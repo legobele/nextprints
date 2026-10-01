@@ -1,0 +1,86 @@
+rules_version = '2';
+
+// ============================================================
+//  FIDGET SHOP — Firestore security rules
+//
+//  Deploy: Firebase console → Firestore Database → Rules tab →
+//  paste this file → Publish.
+//
+//  ★ If you change ADMIN_EMAIL in js/config.js, change the email
+//    in isAdmin() below (and in storage.rules) to match.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "legobele@gmail.com";
+    }
+
+    // Signed in + clicked the verification link + school domain.
+    function isVerifiedStudent() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches(".*@intermetro\\.edu$");
+    }
+
+    // Catalog: everyone reads, only admin writes.
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /deals/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /promoCodes/{code} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // Shoppers may ONLY bump usedCount by exactly 1 when placing an
+      // order (the client does this inside the order transaction).
+      allow update: if isAdmin() || (
+        isVerifiedStudent()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["usedCount"])
+        && request.resource.data.usedCount == resource.data.usedCount + 1
+      );
+    }
+
+    match /orders/{id} {
+      // Orders can only be created by verified school emails, and the
+      // order must belong to the signer and start as "pending".
+      allow create: if isVerifiedStudent()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == "pending";
+      // Owners read their own orders; admin reads everything.
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.userId == request.auth.uid);
+      // Admin manages orders; owners may only cancel their own.
+      allow update: if isAdmin() || (
+        request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && request.resource.data.status == "cancelled"
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin()
+        || (request.auth != null && request.auth.uid == uid);
+      // Created by the account owner right after signup.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if isAdmin();
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

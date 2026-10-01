@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
+    "firebase/storage": "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="site-nav"></div>
+<main class="container">
+  <h1>🛠️ Admin</h1>
+  <div id="gate" hidden></div>
+
+  <div id="admin-panel" hidden>
+    <div class="tabs">
+      <button class="tab active" data-tab="products">Products</button>
+      <button class="tab" data-tab="deals">Deals</button>
+      <button class="tab" data-tab="promos">Promo codes</button>
+      <button class="tab" data-tab="orders">Orders</button>
+    </div>
+
+    <!-- PRODUCTS -->
+    <section id="tab-products" class="tabpane active">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn small" id="prod-new">+ New product</button>
+        <button class="btn small ghost" id="seed-btn">🌱 Seed demo products</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Price</th><th>Preorder</th><th>Status</th><th></th></tr></thead>
+        <tbody id="prod-rows"></tbody>
+      </table></div>
+
+      <form class="admin-form" id="prod-form" hidden>
+        <h3 id="prod-form-title">New product</h3>
+        <div class="form-grid two">
+          <div><label>Name<input id="pf-name" required></label></div>
+          <div><label>Color note (short)<input id="pf-colors" placeholder="e.g. Black only"></label></div>
+        </div>
+        <label>Description<textarea id="pf-desc"></textarea></label>
+        <div class="form-grid two">
+          <div><label>Regular price<input id="pf-price" type="number" step="0.01" min="0" required></label></div>
+          <div><label>Preorder price (blank = none)<input id="pf-preprice" type="number" step="0.01" min="0"></label></div>
+          <div><label>Preorder starts<input id="pf-prestart" type="datetime-local"></label></div>
+          <div><label>Preorder ends<input id="pf-preend" type="datetime-local"></label></div>
+        </div>
+        <label><input type="checkbox" id="pf-active" checked> Active (visible in shop)</label>
+        <label>Images</label>
+        <div class="img-list" id="pf-images"></div>
+        <input type="file" id="pf-file" accept="image/*">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="submit" class="btn small">Save product</button>
+          <button type="button" class="btn small ghost" id="prod-cancel">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- DEALS -->
+    <section id="tab-deals" class="tabpane">
+      <button class="btn small" id="deal-new">+ New deal</button>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Title</th><th>Product</th><th>Deal price</th><th>Window</th><th>Status</th><th></th></tr></thead>
+        <tbody id="deal-rows"></tbody>
+      </table></div>
+
+      <form class="admin-form" id="deal-form" hidden>
+        <h3 id="deal-form-title">New deal</h3>
+        <label>Title<input id="df-title" placeholder="e.g. Launch week special" required></label>
+        <div class="form-grid two">
+          <div><label>Product<select id="df-product"></select></label></div>
+          <div><label>Deal price<input id="df-price" type="number" step="0.01" min="0" required></label></div>
+          <div><label>Starts<input id="df-start" type="datetime-local"></label></div>
+          <div><label>Ends<input id="df-end" type="datetime-local"></label></div>
+        </div>
+        <label><input type="checkbox" id="df-active" checked> Active</label>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="submit" class="btn small">Save deal</button>
+          <button type="button" class="btn small ghost" id="deal-cancel">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- PROMO CODES -->
+    <section id="tab-promos" class="tabpane">
+      <button class="btn small" id="promo-new">+ New promo code</button>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+        <tbody id="promo-rows"></tbody>
+      </table></div>
+
+      <form class="admin-form" id="promo-form" hidden>
+        <h3 id="promo-form-title">New promo code</h3>
+        <div class="form-grid two">
+          <div><label>Code<input id="cf-code" placeholder="e.g. LAUNCH10" autocapitalize="characters" required></label></div>
+          <div><label>Type<select id="cf-type"><option value="percent">Percent %</option><option value="fixed">Fixed $</option></select></label></div>
+          <div><label>Value<input id="cf-value" type="number" step="0.01" min="0" required></label></div>
+          <div><label>Max uses<input id="cf-max" type="number" min="1" value="50" required></label></div>
+          <div><label>Expires<input id="cf-exp" type="datetime-local"></label></div>
+        </div>
+        <label><input type="checkbox" id="cf-active" checked> Active</label>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="submit" class="btn small">Save code</button>
+          <button type="button" class="btn small ghost" id="promo-cancel">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ORDERS -->
+    <section id="tab-orders" class="tabpane">
+      <label>Filter by status
+        <select id="ord-filter" style="max-width:240px">
+          <option value="">All</option>
+          <option value="pending">pending</option>
+          <option value="confirmed">confirmed</option>
+          <option value="ready">ready</option>
+          <option value="delivered">delivered</option>
+          <option value="cancelled">cancelled</option>
+        </select>
+      </label>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody id="ord-rows"></tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>
