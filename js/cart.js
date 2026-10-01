@@ -131,10 +131,14 @@ function render() {
   // multiple times with different variants)
   view.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", async () => {
     const l = lines[Number(b.dataset.dec)];
+    const newQty = Math.max(0, l.qty - 1);
+    b.parentElement.querySelector("span").textContent = newQty; // instant feedback
     setQty(l.productId, l.qty - 1, l.variantKey); updateCartBadge(); await reload();
   }));
   view.querySelectorAll("[data-inc]").forEach((b) => b.addEventListener("click", async () => {
     const l = lines[Number(b.dataset.inc)];
+    const newQty = Math.min(99, l.qty + 1);
+    b.parentElement.querySelector("span").textContent = newQty; // instant feedback
     setQty(l.productId, l.qty + 1, l.variantKey); updateCartBadge(); await reload();
   }));
 
