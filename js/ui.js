@@ -2,9 +2,26 @@
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, FIREBASE_CONFIGURED } from "./firebase.js";
-import { BRAND_NAME, ADMIN_EMAIL, CURRENCY, FIRST_DELIVERY_DATE } from "./config.js";
+import { BRAND_NAME, ADMIN_EMAIL, CURRENCY, FIRST_DELIVERY_DATE, MAINTENANCE_MODE } from "./config.js";
 import { cartCount } from "./store.js";
 import { maybePromptReview } from "./reviews.js";
+
+// Maintenance gate: when MAINTENANCE_MODE is on, every storefront page
+// becomes a maintenance notice. The admin console is exempt so the shop
+// can be managed during the window. Throwing here stops the importing
+// page module, so no shop code runs.
+if (MAINTENANCE_MODE && !location.pathname.includes("nxp-ops-7q2")) {
+  document.title = `Under maintenance · ${BRAND_NAME}`;
+  document.body.innerHTML = `
+    <div class="maintenance">
+      <div class="maintenance-card">
+        <div class="maintenance-brand">${escapeHtml(BRAND_NAME)}</div>
+        <h1>Under maintenance</h1>
+        <p>We&rsquo;re upgrading our systems to serve you better. The shop will be back shortly &mdash; thank you for your patience.</p>
+      </div>
+    </div>`;
+  throw new Error("maintenance mode: storefront disabled");
+}
 import { maybePromptPickup } from "./pickup.js";
 
 export function escapeHtml(s) {
